@@ -1,23 +1,10 @@
 import { httpRouter } from "convex/server";
 import { authComponent, createAuth } from "./auth";
-import Stripe from "stripe";
 import { httpAction } from "./_generated/server";
-import { internal } from "./_generated/api";
 import {
     handleWebhookEvent,
     verifyWebhookSignature,
 } from "./stripe/webhookHandler";
-
-// Initialize Stripe
-const getStripe = () => {
-    const secretKey = process.env.STRIPE_SECRET_KEY;
-    if (!secretKey) {
-        throw new Error("STRIPE_SECRET_KEY is not set");
-    }
-    return new Stripe(secretKey, {
-        apiVersion: "2024-06-20",
-    });
-};
 
 const http = httpRouter();
 
