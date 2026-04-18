@@ -124,8 +124,8 @@ export const getUserById = query({
             .collect();
 
         // Get payment settings
-        const paymentSettings = await ctx.db
-            .query("userPaymentSettings")
+        const stripeAccount = await ctx.db
+            .query("stripeAccounts")
             .withIndex("by_userId", q => q.eq("userId", profile.userId))
             .first();
 
@@ -135,14 +135,14 @@ export const getUserById = query({
             clientProfile,
             settings,
             suspensions,
-            paymentSettings,
+            stripeAccount,
             stats: {
                 bookingsAsClient: bookingsAsClient.length,
                 bookingsAsCreative: bookingsAsCreative.length,
                 completedBookings: [
                     ...bookingsAsClient,
                     ...bookingsAsCreative,
-                ].filter(b => b.status === "COMPLETE").length,
+                ].filter(b => b.status === "COMPLETED").length,
                 cancelledBookings: [
                     ...bookingsAsClient,
                     ...bookingsAsCreative,
