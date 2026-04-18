@@ -85,7 +85,7 @@ export function Hero() {
                         transition={{ duration: 0.8, delay: 0.3 }}
                         className="relative hidden lg:block"
                     >
-                        <div className="relative w-full h-[650px]">
+                        <div className="relative w-full h-162.5">
                             {/* Main Phone - Center */}
                             <div className="absolute left-1/2 -translate-x-1/2 z-20 animate-float">
                                 <PhoneMockup
@@ -227,7 +227,7 @@ function PhoneMockup({
 
             {/* Simplified Glow - Static */}
             <div
-                className="absolute -inset-4 bg-gradient-to-b from-lime/15 to-transparent rounded-[3.5rem] -z-10 blur-2xl"
+                className="absolute -inset-4 bg-linear-to-b from-lime/15 to-transparent rounded-[3.5rem] -z-10 blur-2xl"
                 style={{ opacity: opacity * 0.5 }}
             />
         </div>

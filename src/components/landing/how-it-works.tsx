@@ -13,7 +13,7 @@ const steps = [
         description:
             "Browse by category, location, or availability. Filter by ratings, price, and more to find your perfect match.",
         illustration: (
-            <div className="relative w-full h-48 bg-gradient-to-br from-lime/30 to-forest-green/10 rounded-2xl overflow-hidden">
+            <div className="relative w-full h-48 bg-linear-to-br from-lime/30 to-forest-green/10 rounded-2xl overflow-hidden">
                 <motion.div
                     animate={{ x: [0, 10, 0] }}
                     transition={{ duration: 3, repeat: Infinity }}
@@ -43,7 +43,7 @@ const steps = [
                 <motion.div
                     animate={{ x: [0, 8, 0] }}
                     transition={{ duration: 3.5, repeat: Infinity, delay: 1 }}
-                    className="absolute top-[136px] left-10 right-10"
+                    className="absolute top-34 left-10 right-10"
                 >
                     <div className="bg-white/60 rounded-xl p-3 shadow-sm flex items-center gap-3">
                         <div className="w-8 h-8 bg-forest-green/30 rounded-full" />
@@ -63,7 +63,7 @@ const steps = [
         description:
             "View portfolios, check real-time availability, and book your appointment in just a few taps.",
         illustration: (
-            <div className="relative w-full h-48 bg-gradient-to-br from-forest-green/10 to-lime/30 rounded-2xl overflow-hidden p-4">
+            <div className="relative w-full h-48 bg-linear-to-br from-forest-green/10 to-lime/30 rounded-2xl overflow-hidden p-4">
                 <div className="bg-white rounded-xl p-4 shadow-sm h-full">
                     <div className="flex items-center justify-between mb-3">
                         <div className="h-3 bg-gray-200 rounded w-16" />
@@ -112,7 +112,7 @@ const steps = [
         description:
             "Enjoy your service and pay securely through the app. Leave a review to help others find great creatives.",
         illustration: (
-            <div className="relative w-full h-48 bg-gradient-to-br from-lime/30 to-emerald-100 rounded-2xl overflow-hidden flex items-center justify-center">
+            <div className="relative w-full h-48 bg-linear-to-br from-lime/30 to-emerald-100 rounded-2xl overflow-hidden flex items-center justify-center">
                 <motion.div
                     animate={{ y: [0, -5, 0] }}
                     transition={{ duration: 2, repeat: Infinity }}
