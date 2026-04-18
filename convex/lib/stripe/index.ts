@@ -13,7 +13,7 @@ export const getStripe = (): Stripe => {
     }
 
     stripeInstance = new Stripe(secretKey, {
-        apiVersion: "2024-06-20",
+        apiVersion: "2026-03-25.dahlia",
     });
 
     return stripeInstance;
