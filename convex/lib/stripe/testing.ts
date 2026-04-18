@@ -41,8 +41,11 @@ export const deleteStripeAccountById = action({
                 success: true,
                 message: `Deleted ${args.stripeAccountId}`,
             };
-        } catch (err: any) {
-            return { success: false, message: err.message };
+        } catch (err) {
+            return {
+                success: false,
+                message: err instanceof Error ? err.message : String(err),
+            };
         }
     },
 });
@@ -64,11 +67,11 @@ export const deleteAllRestrictedStripeAccounts = action({
             try {
                 await stripe.accounts.del(acc.id);
                 results.push({ id: acc.id, success: true });
-            } catch (err: any) {
+            } catch (err) {
                 results.push({
                     id: acc.id,
                     success: false,
-                    error: err.message,
+                    error: err instanceof Error ? err.message : String(err),
                 });
             }
         }
@@ -113,7 +116,10 @@ export const cleanupOrphanedAccounts = action({
             try {
                 await stripe.accounts.del(acc.id);
                 results.push({ id: acc.id, success: true });
-            } catch (err: any) {
+            } catch (err) {
+                console.log(
+                    `[Cleanup] Failed to delete ${acc.id}: ${err instanceof Error ? err.message : String(err)}`,
+                );
                 results.push({ id: acc.id, success: false });
             }
         }

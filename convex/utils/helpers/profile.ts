@@ -1,4 +1,4 @@
-import { QueryCtx } from "@convex/_generated/server";
+import { QueryCtx } from "../../../convex/_generated/server";
 
 export const getProfileByUserId = async (ctx: QueryCtx, userId: string) => {
     const profile = await ctx.db

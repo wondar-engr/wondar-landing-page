@@ -1,6 +1,5 @@
 import Stripe from "stripe";
 import { ActionCtx } from "../../_generated/server";
-import { internal } from "../../_generated/api";
 
 export async function handleTransferCreated(
     ctx: ActionCtx,

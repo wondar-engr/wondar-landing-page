@@ -145,7 +145,7 @@ export const handlePaymentSucceeded = internalMutation({
         const booking = await ctx.db.get(transaction.bookingId);
         if (booking) {
             await ctx.db.patch(booking._id, {
-                status: "AWAITING_CONFIRMATION",
+                status: "PAID",
             });
         }
 

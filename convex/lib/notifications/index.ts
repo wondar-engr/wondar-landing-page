@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query, internalMutation } from "../../_generated/server";
+import { mutation, query } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { MutationCtx } from "../../_generated/server";
 
@@ -23,7 +23,7 @@ export interface SendNotificationParams {
     meta?: {
         screen?: string;
         id?: string;
-        [key: string]: any;
+        [key: string]: string | undefined;
     };
     metaUser?: string;
 }

@@ -1,6 +1,5 @@
 import Stripe from "stripe";
 import { ActionCtx } from "../_generated/server";
-import { getStripe } from "./index";
 import {
     handleAccountUpdated,
     handleAccountAuthorized,
@@ -28,8 +27,6 @@ export async function verifyWebhookSignature(
     signature: string,
     webhookSecret: string,
 ): Promise<{ event?: Stripe.Event; error?: string }> {
-    const stripe = getStripe();
-
     try {
         // Use crypto.subtle for async signature verification
         const encoder = new TextEncoder();
@@ -89,8 +86,8 @@ export async function verifyWebhookSignature(
         // Parse the event
         const event = JSON.parse(body) as Stripe.Event;
         return { event };
-    } catch (err: any) {
-        return { error: err.message };
+    } catch (err) {
+        return { error: err instanceof Error ? err.message : String(err) };
     }
 }
 
@@ -199,10 +196,14 @@ export async function handleWebhookEvent(
         }
 
         return { success: true, statusCode: 200 };
-    } catch (error: any) {
+    } catch (error) {
         console.error(`[Stripe Webhook] Error handling ${event.type}:`, error);
         // Return 200 to prevent Stripe from retrying
         // We log the error and can investigate later
-        return { success: false, error: error.message, statusCode: 200 };
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+            statusCode: 200,
+        };
     }
 }

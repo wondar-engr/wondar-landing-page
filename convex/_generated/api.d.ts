@@ -75,6 +75,7 @@ import type * as utils_emails_welcomeEmail from "../utils/emails/welcomeEmail.js
 import type * as utils_errorUtils from "../utils/errorUtils.js";
 import type * as utils_helpers from "../utils/helpers.js";
 import type * as utils_helpers_profile from "../utils/helpers/profile.js";
+import type * as utils_helpers_types from "../utils/helpers/types.js";
 import type * as utils_paymentConfig from "../utils/paymentConfig.js";
 
 import type {
@@ -151,6 +152,7 @@ declare const fullApi: ApiFromModules<{
   "utils/errorUtils": typeof utils_errorUtils;
   "utils/helpers": typeof utils_helpers;
   "utils/helpers/profile": typeof utils_helpers_profile;
+  "utils/helpers/types": typeof utils_helpers_types;
   "utils/paymentConfig": typeof utils_paymentConfig;
 }>;
 

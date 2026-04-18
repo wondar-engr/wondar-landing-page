@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { action } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { getStripe } from "./index";
+import { StripeError } from "../../utils/helpers/types";
 
 const REFRESH_URL = `${process.env.APP_URL}/stripe/connect/refresh`;
 const SUCCESS_URL = `${process.env.APP_URL}/stripe/connect/success`;
@@ -40,10 +41,6 @@ export const createConnectAccount = action({
 
             // Verify the account still exists in Stripe
             try {
-                const stripeAccount = await stripe.accounts.retrieve(
-                    existingAccount.stripeAccountId,
-                );
-
                 // Account exists - generate new onboarding link
                 const accountLink = await stripe.accountLinks.create({
                     account: existingAccount.stripeAccountId,
@@ -56,9 +53,13 @@ export const createConnectAccount = action({
                     accountId: existingAccount.stripeAccountId,
                     onboardingUrl: accountLink.url,
                 };
-            } catch (err: any) {
+            } catch (e) {
+                const err = e as StripeError;
                 // Account was deleted in Stripe, remove from our database
-                if (err.code === "account_invalid" || err.statusCode === 404) {
+                if (
+                    err &&
+                    (err.code === "account_invalid" || err.statusCode === 404)
+                ) {
                     console.log(
                         `[Connect] Account deleted in Stripe, removing from DB`,
                     );
@@ -281,9 +282,9 @@ export const deleteAllRestrictedAccounts = action({
                 // Delete from Stripe
                 await stripe.accounts.del(account.stripeAccountId);
                 console.log(`[Connect] Deleted: ${account.stripeAccountId}`);
-            } catch (err: any) {
+            } catch (err) {
                 console.log(
-                    `[Connect] Could not delete ${account.stripeAccountId}: ${err.message}`,
+                    `[Connect] Could not delete ${account.stripeAccountId}: ${err instanceof Error ? err.message : String(err)}`,
                 );
             }
 
@@ -333,9 +334,9 @@ export const deleteConnectAccount = action({
                 console.log(
                     `[Connect] Deleted Stripe account: ${account.stripeAccountId}`,
                 );
-            } catch (err: any) {
+            } catch (err) {
                 console.log(
-                    `[Connect] Failed to delete from Stripe: ${err.message}`,
+                    `[Connect] Failed to delete from Stripe: ${err instanceof Error ? err.message : String(err)}`,
                 );
                 // Continue to delete from our database anyway
             }
