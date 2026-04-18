@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "../../_generated/server";
 import { nanoid } from "nanoid";
 import { WaitlistInterestUnion } from "../../../convex/unions";
+import { api } from "../../_generated/api";
 
 // Generate a unique referral code
 function generateReferralCode(): string {
@@ -70,7 +71,9 @@ export const join = mutation({
 
             const position = lastEntry ? lastEntry.position + 1 : 1;
             const referralCode = generateReferralCode();
-
+            const referralLink =
+                `${process.env.WEBSITE_URL}?ref=${referralCode}` ||
+                `https://wondarapp.com?ref=${referralCode}`;
             // Create waitlist entry
             const id = await ctx.db.insert("waitlist", {
                 email: args.email.toLowerCase(),
@@ -86,6 +89,18 @@ export const join = mutation({
                 state: args.state,
                 createdAt: Date.now(),
             });
+
+            await ctx.scheduler.runAfter(
+                0,
+                api.lib.emailActions.sendWaitlistConfirmationEmailAction,
+                {
+                    to: args.email,
+                    firstName: args.firstName || "",
+                    position,
+                    referralCode,
+                    referralLink,
+                },
+            );
 
             return {
                 success: true,

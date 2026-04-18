@@ -5,6 +5,7 @@ import { render } from "@react-email/components";
 import { WelcomeEmail } from "../../convex/utils/emails/welcomeEmail";
 import ClientOnboardingCompleteEmail from "../../convex/utils/emails/clientOnboardingEmail";
 import CreativeOnboardingCompleteEmail from "../../convex/utils/emails/creativeOnboardingEmail";
+import WaitlistConfirmationEmail from "../utils/emails/waitlistConfirmationEmail";
 
 export const sendWelcomeEmailAction = action({
     args: {
@@ -65,6 +66,33 @@ export const sendCreativeOnboardingCompleteAction = action({
                     firstName={firstName}
                     businessName={businessName}
                     skills={skillNames}
+                />,
+            ),
+        });
+    },
+});
+
+export const sendWaitlistConfirmationEmailAction = action({
+    args: {
+        to: v.string(),
+        firstName: v.string(),
+        position: v.number(),
+        referralCode: v.string(),
+        referralLink: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const { to, firstName, position, referralCode, referralLink } = args;
+
+        await resend.sendEmail(ctx, {
+            from: "Dee <dee@wondarapp.com>",
+            to,
+            subject: `You're #${position} on the Wondar waitlist! 🎉`,
+            html: await render(
+                <WaitlistConfirmationEmail
+                    firstName={firstName}
+                    position={position}
+                    referralCode={referralCode}
+                    referralLink={referralLink}
                 />,
             ),
         });
