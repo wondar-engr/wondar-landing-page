@@ -84,7 +84,7 @@ export const sendWaitlistConfirmationEmailAction = action({
         const { to, firstName, position, referralCode, referralLink } = args;
 
         await resend.sendEmail(ctx, {
-            from: "Dee <dee@wondarapp.com>",
+            from: "Wondar App <contact@wondarapp.com>",
             to,
             subject: `You're #${position} on the Wondar waitlist! 🎉`,
             html: await render(

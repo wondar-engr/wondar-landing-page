@@ -107,6 +107,7 @@ const header = {
 
 const logo = {
     margin: "0 auto",
+    objectFit: "contain" as const,
 };
 
 const content = {

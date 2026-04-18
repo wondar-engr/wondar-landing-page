@@ -56,8 +56,14 @@ export const join = mutation({
                 if (referrer) {
                     validReferral = true;
                     // Increment referrer's count
+                    const newReferralCount = referrer.referralCount + 1;
+
+                    // Move referrer up 5 spots for each referral
+                    const newPosition = Math.max(1, referrer.position - 5);
+
                     await ctx.db.patch(referrer._id, {
-                        referralCount: referrer.referralCount + 1,
+                        referralCount: newReferralCount,
+                        position: newPosition,
                     });
                 }
             }
@@ -84,7 +90,7 @@ export const join = mutation({
                 referredBy: validReferral ? referredBy : undefined,
                 referralCount: 0,
                 status: "PENDING",
-                interestedAs: args.interestedAs,
+                interestedAs: args.interestedAs || "BOTH",
                 city: args.city,
                 state: args.state,
                 createdAt: Date.now(),

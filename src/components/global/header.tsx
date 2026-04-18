@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -21,20 +21,20 @@ export function Header() {
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
-    const scrollToSection = (sectionId: string) => {
+    const scrollToSection = useCallback((sectionId: string) => {
         const element = document.getElementById(sectionId);
         if (element) {
             const headerOffset = 80;
             const elementPosition = element.getBoundingClientRect().top;
             const offsetPosition =
-                elementPosition + window.pageYOffset - headerOffset;
+                elementPosition + window.scrollY - headerOffset;
 
             window.scrollTo({
                 top: offsetPosition,
                 behavior: "smooth",
             });
         }
-    };
+    }, []);
 
     // Handle navigation - works both on home page and other pages
     const handleNavClick = (
@@ -42,13 +42,17 @@ export function Header() {
         sectionId: string,
     ) => {
         e.preventDefault();
+
+        // Close mobile menu first
         setIsMobileMenuOpen(false);
 
         if (pathname === "/") {
-            // Already on home page - just scroll
-            scrollToSection(sectionId);
+            // Already on home page - just scroll after a small delay for menu to close
+            setTimeout(() => {
+                scrollToSection(sectionId);
+            }, 100);
         } else {
-            // On another page - navigate home first, then scroll
+            // On another page - navigate home with hash
             router.push(`/#${sectionId}`);
         }
     };
@@ -57,12 +61,13 @@ export function Header() {
     useEffect(() => {
         if (pathname === "/" && window.location.hash) {
             const sectionId = window.location.hash.replace("#", "");
-            // Small delay to ensure page is loaded
-            setTimeout(() => {
+            // Delay to ensure page is fully loaded
+            const timer = setTimeout(() => {
                 scrollToSection(sectionId);
-            }, 100);
+            }, 300);
+            return () => clearTimeout(timer);
         }
-    }, [pathname]);
+    }, [pathname, scrollToSection]);
 
     const navLinks = [
         { href: "/#features", id: "features", label: "Features" },
@@ -123,6 +128,7 @@ export function Header() {
                     <button
                         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                         className="md:hidden p-2"
+                        aria-label="Toggle menu"
                     >
                         {isMobileMenuOpen ? (
                             <X className="w-6 h-6 text-slate" />
@@ -140,26 +146,45 @@ export function Header() {
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="md:hidden bg-white border-t"
+                        transition={{ duration: 0.2 }}
+                        className="md:hidden bg-white border-t overflow-hidden"
                     >
-                        <nav className="flex flex-col p-4 gap-4">
+                        <nav className="flex flex-col p-4 gap-2">
                             {navLinks.map(link => (
-                                <Link
+                                <button
                                     key={link.id}
-                                    href={link.href}
-                                    onClick={e => handleNavClick(e, link.id)}
-                                    className="text-slate/70 hover:text-slate py-2"
+                                    onClick={e => {
+                                        e.preventDefault();
+                                        setIsMobileMenuOpen(false);
+                                        setTimeout(() => {
+                                            if (pathname === "/") {
+                                                scrollToSection(link.id);
+                                            } else {
+                                                router.push(`/#${link.id}`);
+                                            }
+                                        }, 150);
+                                    }}
+                                    className="text-slate/70 hover:text-slate py-3 text-left"
                                 >
                                     {link.label}
-                                </Link>
+                                </button>
                             ))}
-                            <Link
-                                href="/#waitlist"
-                                onClick={e => handleNavClick(e, "waitlist")}
-                                className="bg-forest-green text-white px-6 py-3 rounded-full font-medium text-center"
+                            <button
+                                onClick={e => {
+                                    e.preventDefault();
+                                    setIsMobileMenuOpen(false);
+                                    setTimeout(() => {
+                                        if (pathname === "/") {
+                                            scrollToSection("waitlist");
+                                        } else {
+                                            router.push("/#waitlist");
+                                        }
+                                    }, 150);
+                                }}
+                                className="bg-forest-green text-white px-6 py-3 rounded-full font-medium text-center mt-2"
                             >
                                 Join Waitlist
-                            </Link>
+                            </button>
                         </nav>
                     </motion.div>
                 )}

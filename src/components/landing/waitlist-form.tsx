@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,11 +9,14 @@ import { useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import confetti from "canvas-confetti";
 import { Loader2, CheckCircle, Copy, Check } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 
 const waitlistSchema = z.object({
-    email: z.string().email("Please enter a valid email address"),
+    email: z.email("Please enter a valid email address"),
     firstName: z.string().optional(),
-    interestedAs: z.enum(["CLIENT", "CREATIVE", "BOTH"]).optional(),
+    interestedAs: z.enum(["CLIENT", "CREATIVE", "BOTH"], {
+        error: "Please select an option",
+    }),
 });
 
 type WaitlistFormData = z.infer<typeof waitlistSchema>;
@@ -25,8 +28,18 @@ export function WaitlistForm() {
         referralCode: string;
     } | null>(null);
     const [copied, setCopied] = useState(false);
+    const [referredBy, setReferredBy] = useState<string | null>(null);
 
+    const searchParams = useSearchParams();
     const joinWaitlist = useMutation(api.lib.waitlist.core.join);
+
+    // Capture referral code from URL on mount
+    useEffect(() => {
+        const refCode = searchParams.get("ref");
+        if (refCode) {
+            setReferredBy(refCode.toUpperCase());
+        }
+    }, [searchParams]);
 
     const {
         register,
@@ -42,6 +55,7 @@ export function WaitlistForm() {
                 email: data.email,
                 firstName: data.firstName,
                 interestedAs: data.interestedAs,
+                referredBy: referredBy || undefined, // Pass referral code
             });
 
             if (response.success) {
@@ -77,6 +91,9 @@ export function WaitlistForm() {
         setTimeout(() => setCopied(false), 2000);
     };
 
+    console.log("Referred By:", referredBy); // Debug log for referral code
+    console.log("Errors:", errors); // Debug log for form errors
+
     return (
         <AnimatePresence mode="wait">
             {!isSubmitted ? (
@@ -87,6 +104,17 @@ export function WaitlistForm() {
                     onSubmit={handleSubmit(onSubmit)}
                     className="space-y-4"
                 >
+                    {/* Show referral badge if referred */}
+                    {referredBy && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-lime/30 text-forest-green text-sm px-4 py-2 rounded-full text-center"
+                        >
+                            🎉 You were referred! Code:{" "}
+                            <strong>{referredBy}</strong>
+                        </motion.div>
+                    )}
                     <div className="flex flex-col sm:flex-row gap-3">
                         <div className="flex-1">
                             <input
@@ -119,38 +147,47 @@ export function WaitlistForm() {
                         </motion.button>
                     </div>
 
-                    {/* Optional: Interest Selection */}
-                    <div className="flex items-center justify-center lg:justify-start gap-4 text-sm">
-                        <span className="text-slate/60">I want to:</span>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                                {...register("interestedAs")}
-                                type="radio"
-                                value="CLIENT"
-                                className="accent-forest-green"
-                            />
-                            <span className="text-slate/80">Book services</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                                {...register("interestedAs")}
-                                type="radio"
-                                value="CREATIVE"
-                                className="accent-forest-green"
-                            />
-                            <span className="text-slate/80">
-                                Offer services
-                            </span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                                {...register("interestedAs")}
-                                type="radio"
-                                value="BOTH"
-                                className="accent-forest-green"
-                            />
-                            <span className="text-slate/80">Both</span>
-                        </label>
+                    {/* Interest Selection */}
+                    <div className="flex flex-col gap-2">
+                        <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 text-sm">
+                            <span className="text-slate/60">I want to:</span>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    {...register("interestedAs")}
+                                    type="radio"
+                                    value="CLIENT"
+                                    className="accent-forest-green"
+                                />
+                                <span className="text-slate/80">
+                                    Book services
+                                </span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    {...register("interestedAs")}
+                                    type="radio"
+                                    value="CREATIVE"
+                                    className="accent-forest-green"
+                                />
+                                <span className="text-slate/80">
+                                    Offer services
+                                </span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    {...register("interestedAs")}
+                                    type="radio"
+                                    value="BOTH"
+                                    className="accent-forest-green"
+                                />
+                                <span className="text-slate/80">Both</span>
+                            </label>
+                        </div>
+                        {errors.interestedAs && (
+                            <p className="text-red-500 text-sm text-center lg:text-left">
+                                {errors.interestedAs.message}
+                            </p>
+                        )}
                     </div>
                 </motion.form>
             ) : (
