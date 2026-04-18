@@ -44,10 +44,8 @@ export const getKPIStats = query({
         // Calculate booking stats by status
         const bookingsByStatus = {
             inProgress: bookings.filter(b => b.status === "IN_PROGRESS").length,
-            awaitingConfirmation: bookings.filter(
-                b => b.status === "AWAITING_CONFIRMATION",
-            ).length,
-            complete: bookings.filter(b => b.status === "COMPLETE").length,
+            pending: bookings.filter(b => b.status === "PENDING").length,
+            completed: bookings.filter(b => b.status === "COMPLETED").length,
             cancelled: bookings.filter(b => b.status === "CANCELLED").length,
             dispute: bookings.filter(b => b.status === "DISPUTE").length,
             refunded: bookings.filter(b => b.status === "REFUNDED").length,
