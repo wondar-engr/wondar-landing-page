@@ -119,7 +119,7 @@ export function Hero() {
                             {/* Background Phone */}
                             <div className="absolute left-1/2 -translate-x-1/2 top-8 z-0 animate-float-slow">
                                 <PhoneMockup
-                                    src="/images/screenshots/booking.png"
+                                    src="/images/screenshots/booking-review.png"
                                     alt="Wondar App - Booking Review"
                                     size="small"
                                     opacity={0.4}
