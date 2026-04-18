@@ -1,14 +1,11 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Funnel_Sans } from "next/font/google";
 import "./globals.css";
+import { ConvexClientProvider } from "@/components/providers/convex-client-provider";
+import NextTopLoader from "nextjs-toploader";
 
-const geistSans = Geist({
-    variable: "--font-geist-sans",
-    subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-    variable: "--font-geist-mono",
+const funnelSans = Funnel_Sans({
+    variable: "--font-funnel-sans",
     subsets: ["latin"],
 });
 
@@ -24,10 +21,9 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en">
-            <body
-                className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-            >
-                {children}
+            <body className={`${funnelSans.variable}  antialiased`}>
+                <NextTopLoader color="#2D5A3D" />
+                <ConvexClientProvider>{children}</ConvexClientProvider>
             </body>
         </html>
     );
