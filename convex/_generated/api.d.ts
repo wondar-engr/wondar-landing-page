@@ -26,7 +26,6 @@ import type * as lib_internalQueries_profiles from "../lib/internalQueries/profi
 import type * as lib_internalQueries_settings from "../lib/internalQueries/settings.js";
 import type * as lib_internalQueries_stripe from "../lib/internalQueries/stripe.js";
 import type * as lib_notifications_index from "../lib/notifications/index.js";
-import type * as lib_notifications_push from "../lib/notifications/push.js";
 import type * as lib_stripe_connect from "../lib/stripe/connect.js";
 import type * as lib_stripe_connectMutations from "../lib/stripe/connectMutations.js";
 import type * as lib_stripe_connectQueries from "../lib/stripe/connectQueries.js";
@@ -34,10 +33,13 @@ import type * as lib_stripe_earnings from "../lib/stripe/earnings.js";
 import type * as lib_stripe_index from "../lib/stripe/index.js";
 import type * as lib_stripe_testing from "../lib/stripe/testing.js";
 import type * as lib_user_client_bookingFns from "../lib/user/client/bookingFns.js";
+import type * as lib_user_client_core from "../lib/user/client/core.js";
 import type * as lib_user_client_creativeFns from "../lib/user/client/creativeFns.js";
+import type * as lib_user_client_favoritesFn from "../lib/user/client/favoritesFn.js";
 import type * as lib_user_client_profile from "../lib/user/client/profile.js";
 import type * as lib_user_client_serviceFns from "../lib/user/client/serviceFns.js";
 import type * as lib_user_core_notifications from "../lib/user/core/notifications.js";
+import type * as lib_user_core_supportFns from "../lib/user/core/supportFns.js";
 import type * as lib_user_core_supports from "../lib/user/core/supports.js";
 import type * as lib_user_creative_bookingFns from "../lib/user/creative/bookingFns.js";
 import type * as lib_user_creative_dashboardFns from "../lib/user/creative/dashboardFns.js";
@@ -48,6 +50,7 @@ import type * as lib_user_serviceCategories from "../lib/user/serviceCategories.
 import type * as lib_user_userSettings from "../lib/user/userSettings.js";
 import type * as lib_waitlist_core from "../lib/waitlist/core.js";
 import type * as locations from "../locations.js";
+import type * as push from "../push.js";
 import type * as r2 from "../r2.js";
 import type * as seed_systemConfig from "../seed/systemConfig.js";
 import type * as stripe_handlers_accountHandlers from "../stripe/handlers/accountHandlers.js";
@@ -58,6 +61,7 @@ import type * as stripe_handlers_transferHandlers from "../stripe/handlers/trans
 import type * as stripe_index from "../stripe/index.js";
 import type * as stripe_webhookHandler from "../stripe/webhookHandler.js";
 import type * as stripe_webhooks from "../stripe/webhooks.js";
+import type * as tests_notifications from "../tests/notifications.js";
 import type * as twilio from "../twilio.js";
 import type * as unions from "../unions.js";
 import type * as utils_emails_clientOnboardingEmail from "../utils/emails/clientOnboardingEmail.js";
@@ -103,7 +107,6 @@ declare const fullApi: ApiFromModules<{
   "lib/internalQueries/settings": typeof lib_internalQueries_settings;
   "lib/internalQueries/stripe": typeof lib_internalQueries_stripe;
   "lib/notifications/index": typeof lib_notifications_index;
-  "lib/notifications/push": typeof lib_notifications_push;
   "lib/stripe/connect": typeof lib_stripe_connect;
   "lib/stripe/connectMutations": typeof lib_stripe_connectMutations;
   "lib/stripe/connectQueries": typeof lib_stripe_connectQueries;
@@ -111,10 +114,13 @@ declare const fullApi: ApiFromModules<{
   "lib/stripe/index": typeof lib_stripe_index;
   "lib/stripe/testing": typeof lib_stripe_testing;
   "lib/user/client/bookingFns": typeof lib_user_client_bookingFns;
+  "lib/user/client/core": typeof lib_user_client_core;
   "lib/user/client/creativeFns": typeof lib_user_client_creativeFns;
+  "lib/user/client/favoritesFn": typeof lib_user_client_favoritesFn;
   "lib/user/client/profile": typeof lib_user_client_profile;
   "lib/user/client/serviceFns": typeof lib_user_client_serviceFns;
   "lib/user/core/notifications": typeof lib_user_core_notifications;
+  "lib/user/core/supportFns": typeof lib_user_core_supportFns;
   "lib/user/core/supports": typeof lib_user_core_supports;
   "lib/user/creative/bookingFns": typeof lib_user_creative_bookingFns;
   "lib/user/creative/dashboardFns": typeof lib_user_creative_dashboardFns;
@@ -125,6 +131,7 @@ declare const fullApi: ApiFromModules<{
   "lib/user/userSettings": typeof lib_user_userSettings;
   "lib/waitlist/core": typeof lib_waitlist_core;
   locations: typeof locations;
+  push: typeof push;
   r2: typeof r2;
   "seed/systemConfig": typeof seed_systemConfig;
   "stripe/handlers/accountHandlers": typeof stripe_handlers_accountHandlers;
@@ -135,6 +142,7 @@ declare const fullApi: ApiFromModules<{
   "stripe/index": typeof stripe_index;
   "stripe/webhookHandler": typeof stripe_webhookHandler;
   "stripe/webhooks": typeof stripe_webhooks;
+  "tests/notifications": typeof tests_notifications;
   twilio: typeof twilio;
   unions: typeof unions;
   "utils/emails/clientOnboardingEmail": typeof utils_emails_clientOnboardingEmail;

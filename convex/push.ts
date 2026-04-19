@@ -2,7 +2,7 @@
 
 import Expo from "expo-server-sdk";
 import { v } from "convex/values";
-import { internalAction } from "../../_generated/server";
+import { internalAction } from "./_generated/server";
 
 const expo = new Expo();
 

@@ -129,6 +129,11 @@ export const getUserById = query({
             .withIndex("by_userId", q => q.eq("userId", profile.userId))
             .first();
 
+        const stripeCustomer = await ctx.db
+            .query("stripeCustomers")
+            .withIndex("by_userId", q => q.eq("userId", profile.userId))
+            .first();
+
         return {
             profile,
             creativeProfile,
@@ -136,6 +141,7 @@ export const getUserById = query({
             settings,
             suspensions,
             stripeAccount,
+            stripeCustomer,
             stats: {
                 bookingsAsClient: bookingsAsClient.length,
                 bookingsAsCreative: bookingsAsCreative.length,

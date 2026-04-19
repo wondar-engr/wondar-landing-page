@@ -39,7 +39,7 @@ const schema = defineSchema({
         phoneVerified: v.optional(v.boolean()),
         role: UserRoleUnion,
         avatar: v.optional(v.string()),
-        currentType: UserTypeUnion, // "client", "creative", or "both"
+        currentType: UserTypeUnion, // "client", "creative",
         totalRating: v.optional(v.number()), // Cumulative rating for sorting (e.g., "Top Rated")
         // PUBLIC SEARCH DATA:
         // This is what the map uses. Update this frequently via the mobile app.
@@ -325,7 +325,9 @@ const schema = defineSchema({
         rating: v.number(), // 1-5
         content: v.string(),
         role: ReviewRoleUnion,
-    }).index("by_target", ["targetId"]),
+    })
+        .index("by_target", ["targetId"])
+        .index("by_author", ["authorId"]),
 
     // ==========================================
     // SYSTEM CONFIGURATION
@@ -351,6 +353,8 @@ const schema = defineSchema({
 
         // Status
         status: StripeAccountStatusUnion,
+
+        balance: v.optional(v.number()), // In cents, for quick access without Stripe API call
 
         // Capabilities
         chargesEnabled: v.boolean(),
@@ -568,6 +572,14 @@ const schema = defineSchema({
         .index("by_referralCode", ["referralCode"])
         .index("by_status", ["status"])
         .index("by_referredBy", ["referredBy"]),
+    favorites: defineTable({
+        userId: v.string(), // User who favorited
+        serviceId: v.id("services"), // Service being favorited
+        createdAt: v.number(),
+    })
+        .index("by_userId", ["userId"])
+        .index("by_service", ["serviceId"])
+        .index("by_both", ["userId", "serviceId"]),
 });
 
 export default schema;

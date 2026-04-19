@@ -77,7 +77,7 @@ export async function sendNotification(
     // 5. Send push notification
     const pushTokens = activeDevices.map(d => d.pushToken!);
 
-    await ctx.scheduler.runAfter(0, internal.lib.notifications.push.sendPush, {
+    await ctx.scheduler.runAfter(0, internal.push.sendPush, {
         tokens: pushTokens,
         title,
         body,

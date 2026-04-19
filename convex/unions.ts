@@ -41,6 +41,8 @@ export const NotificationTypeUnion = v.union(
     v.literal("ADMIN"),
     v.literal("REVIEW"),
     v.literal("PAYMENT"),
+    v.literal("SUPPORT"),
+    v.literal("LIKE"),
 );
 
 export const ServicePaymentSystemUnion = v.union(
