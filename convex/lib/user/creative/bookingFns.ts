@@ -122,7 +122,19 @@ export const acceptBooking = mutation({
         await ctx.db.patch(bookingId, {
             status: "CONFIRMED",
             updatedAt: Date.now(),
+            paymentPhase: "UPFRONT_PENDING",
         });
+
+        // update service stats
+        const service = await ctx.db.get(booking.serviceId);
+        if (service) {
+            await ctx.db.patch(service._id, {
+                stats: {
+                    ...service.stats,
+                    timesOrdered: (service.stats?.timesOrdered || 0) + 1,
+                },
+            });
+        }
 
         const creativeProfile = await ctx.db
             .query("profiles")
@@ -135,14 +147,26 @@ export const acceptBooking = mutation({
 
         await sendNotification(ctx, {
             userId: booking.clientId,
-            title: "Booking Confirmed! ✅",
-            body: `${creativeName} has accepted your booking.`,
+            title: "Booking Accepted ✅",
+            body: `${creativeName} accepted your booking. Please pay ${booking.upfrontChargeAmount ? `$${(booking.upfrontChargeAmount / 100).toFixed(2)}` : "the upfront amount"} to secure your slot.`,
             type: "BOOKING",
-            meta: { screen: "booking_detail", id: bookingId },
+            meta: {
+                screen: "booking_detail",
+                id: bookingId,
+                action: "PAY_UPFRONT",
+                amount: (booking.upfrontChargeAmount / 100).toString(),
+                currency: booking.currency,
+            },
             metaUser: creativeId,
         });
 
-        return { success: true };
+        return {
+            success: true,
+            status: "CONFIRMED",
+            paymentPhase: "UPFRONT_PENDING",
+            dueNow: booking.upfrontChargeAmount,
+            dueAfterCompletion: booking.remainingDueAmount,
+        };
     },
 });
 
@@ -170,18 +194,33 @@ export const declineBooking = mutation({
             status: "CANCELLED",
             cancel: { by: creativeId, reason, date: Date.now() },
             updatedAt: Date.now(),
+            paymentPhase: "NONE",
         });
+
+        const service = await ctx.db.get(booking.serviceId);
+        if (service) {
+            await ctx.db.patch(service._id, {
+                stats: {
+                    ...service.stats,
+                    timesCancelled: (service.stats?.timesCancelled || 0) + 1,
+                },
+            });
+        }
 
         await sendNotification(ctx, {
             userId: booking.clientId,
             title: "Booking Declined",
             body: `Your booking request was declined. Reason: ${reason}`,
             type: "BOOKING",
-            meta: { screen: "booking_detail", id: bookingId },
+            meta: {
+                screen: "booking_detail",
+                id: bookingId,
+                action: "DECLINED",
+            },
             metaUser: creativeId,
         });
 
-        return { success: true };
+        return { success: true, status: "CANCELLED", reason };
     },
 });
 
@@ -293,10 +332,14 @@ export const cancelBooking = mutation({
             title: "Booking Cancelled",
             body: `Your booking was cancelled by the creative. Reason: ${reason}`,
             type: "BOOKING",
-            meta: { screen: "booking_detail", id: bookingId },
+            meta: {
+                screen: "booking_detail",
+                id: bookingId,
+                action: "CANCELLED",
+            },
             metaUser: creativeId,
         });
 
-        return { success: true };
+        return { success: true, status: "CANCELLED", reason };
     },
 });

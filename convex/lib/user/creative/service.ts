@@ -17,12 +17,14 @@ export const createService = mutation({
         paymentSystem: v.union(v.literal("HOURLY"), v.literal("FLAT")),
         serviceFee: v.number(),
         bookingFee: v.number(),
-        travelOption: v.union(
-            v.literal("NO_TRAVEL"),
-            v.literal("CREATIVE_TRAVELS"),
-            v.literal("BOTH"),
+        travelOption: v.optional(
+            v.union(
+                v.literal("NO_TRAVEL"),
+                v.literal("CREATIVE_TRAVELS"),
+                v.literal("BOTH"),
+            ),
         ),
-        travelFee: v.number(),
+        travelFee: v.optional(v.number()),
         duration: v.number(),
         bufferTime: v.number(),
         availability: v.array(

@@ -189,3 +189,36 @@ export const WaitlistInterestUnion = v.union(
     v.literal("CREATIVE"),
     v.literal("BOTH"),
 );
+
+export const BookingPaymentPhaseUnion = v.union(
+    v.literal("NONE"),
+    v.literal("UPFRONT_PENDING"),
+    v.literal("UPFRONT_PAID"),
+    v.literal("FINAL_PENDING"),
+    v.literal("FINAL_PAID"),
+    v.literal("FULLY_SETTLED"),
+);
+
+export const TransactionPhaseUnion = v.union(
+    v.literal("UPFRONT"),
+    v.literal("FINAL"),
+);
+
+export const ProfitSourceUnion = v.union(
+    v.literal("CLIENT_FEE"), // 5%
+    v.literal("CREATIVE_FEE"), // 15%
+);
+
+export const ProfitStatusUnion = v.union(
+    v.literal("PENDING"),
+    v.literal("RECOGNIZED"),
+    v.literal("REVERSED"),
+);
+
+export const RescheduleStatusUnion = v.union(
+    v.literal("NONE"),
+    v.literal("REQUESTED"),
+    v.literal("APPROVED"),
+    v.literal("REJECTED"),
+    v.literal("EXPIRED"),
+);

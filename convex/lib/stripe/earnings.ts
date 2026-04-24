@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { query, action } from "../../_generated/server";
 import Stripe from "stripe";
 import { getAuthUserId } from "../../../convex/auth";
+import { getProfileByUserId } from "@convex/utils/helpers/profile";
 
 // Initialize Stripe
 const getStripe = () => {
@@ -52,11 +53,11 @@ export const getEarningsSummary = query({
         for (const tx of allTransactions) {
             totalEarnings += tx.creativeEarnings;
 
-            if (tx.createdAt >= thisMonthStart.getTime()) {
+            if (tx._creationTime >= thisMonthStart.getTime()) {
                 thisMonthEarnings += tx.creativeEarnings;
             } else if (
-                tx.createdAt >= lastMonthStart.getTime() &&
-                tx.createdAt <= lastMonthEnd.getTime()
+                tx._creationTime >= lastMonthStart.getTime() &&
+                tx._creationTime <= lastMonthEnd.getTime()
             ) {
                 lastMonthEarnings += tx.creativeEarnings;
             }
@@ -69,6 +70,12 @@ export const getEarningsSummary = query({
         }
 
         const availableBalance = totalEarnings - pendingBalance;
+
+        console.log(`Available Balance: ${availableBalance}`);
+        console.log(`Pending Balance: ${pendingBalance}`);
+        console.log(`Total Earnings: ${totalEarnings}`);
+        console.log(`This Month Earnings: ${thisMonthEarnings}`);
+        console.log(`Last Month Earnings: ${lastMonthEarnings}`);
 
         return {
             availableBalance: Math.max(0, availableBalance),
@@ -87,19 +94,36 @@ export const getEarningsSummary = query({
  */
 export const getRecentTransactions = query({
     args: {
-        userId: v.string(),
         limit: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) return [];
+
         const limit = args.limit ?? 10;
 
         const transactions = await ctx.db
             .query("transactions")
-            .withIndex("by_creativeId", q => q.eq("creativeId", args.userId))
+            .withIndex("by_creativeId", q => q.eq("creativeId", userId))
             .order("desc")
             .take(limit);
 
-        return transactions;
+        const enrichedTransactions = await Promise.all(
+            transactions.map(async tx => {
+                const service = await ctx.db.get(tx.serviceId);
+                const client = await getProfileByUserId(ctx, tx.clientId);
+                const creative = await getProfileByUserId(ctx, tx.creativeId);
+
+                return {
+                    ...tx,
+                    serviceName: service?.name ?? "Unknown Service",
+                    clientName: `${client?.firstName ?? "Unknown"} ${client?.lastName ?? "Client"}`,
+                    creativeName: `${creative?.firstName ?? "Unknown"} ${creative?.lastName ?? "Creative"}`,
+                };
+            }),
+        );
+
+        return enrichedTransactions;
     },
 });
 

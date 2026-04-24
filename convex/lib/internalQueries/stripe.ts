@@ -17,3 +17,10 @@ export const getStripeAccount = internalQuery({
         return account;
     },
 });
+
+export const getBookingForPaymentInternal = internalQuery({
+    args: { bookingId: v.id("bookings") },
+    handler: async (ctx, { bookingId }) => {
+        return await ctx.db.get(bookingId);
+    },
+});

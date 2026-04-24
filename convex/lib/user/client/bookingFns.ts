@@ -14,6 +14,16 @@ async function generateOrderNo(ctx: QueryCtx): Promise<string> {
     return `WND-${nextNum}`;
 }
 
+async function getConfigNumber(ctx: QueryCtx, key: string, fallback: number) {
+    const row = await ctx.db
+        .query("systemConfig")
+        .withIndex("by_key", (q: any) => q.eq("key", key))
+        .unique();
+
+    const n = Number(row?.value);
+    return Number.isFinite(n) ? n : fallback;
+}
+
 // ==========================================
 // CREATE BOOKING
 // ==========================================
@@ -37,14 +47,66 @@ export const createBooking = mutation({
             throw new Error("Service does not belong to this creative");
         }
 
-        const endTime = args.startTime + service.duration;
-
         // Calculate fees
         const serviceFee = service.serviceFee;
         const bookingFee = service.bookingFee;
-        const subtotal = serviceFee + bookingFee;
-        const tax = Math.round(subtotal * 0.08);
-        const proposedTotal = subtotal + tax;
+        const endTime = args.startTime + service.duration;
+
+        if (!Number.isInteger(serviceFee) || serviceFee <= 0) {
+            throw new Error("Invalid service fee");
+        }
+        if (!Number.isInteger(bookingFee) || bookingFee < 0) {
+            throw new Error("Invalid booking fee");
+        }
+
+        // Pull live config, then snapshot into booking
+        const clientFeePercent = await getConfigNumber(
+            ctx,
+            "platform_fee_percent_client",
+            5,
+        );
+        const creativeFeePercent = await getConfigNumber(
+            ctx,
+            "platform_fee_percent_creative",
+            15,
+        );
+        const minBookingPercent = await getConfigNumber(
+            ctx,
+            "booking_fee_percent_min",
+            20,
+        );
+        const maxBookingPercent = await getConfigNumber(
+            ctx,
+            "booking_fee_percent_max",
+            50,
+        );
+        const currencyCfg = await ctx.db
+            .query("systemConfig")
+            .withIndex("by_key", (q: any) => q.eq("key", "default_currency"))
+            .unique();
+
+        const currency = String(currencyCfg?.value ?? "usd").toLowerCase();
+
+        // Validate booking fee against configured band
+        const minBookingFee = Math.ceil((serviceFee * minBookingPercent) / 100);
+        const maxBookingFee = Math.floor(
+            (serviceFee * maxBookingPercent) / 100,
+        );
+
+        if (bookingFee < minBookingFee || bookingFee > maxBookingFee) {
+            throw new Error(
+                `Booking fee must be between ${minBookingPercent}% and ${maxBookingPercent}% of service fee.`,
+            );
+        }
+        const platformClientFeeAmount = Math.round(
+            (serviceFee * clientFeePercent) / 100,
+        );
+        const platformCreativeFeeAmount = Math.round(
+            (serviceFee * creativeFeePercent) / 100,
+        );
+
+        const upfrontChargeAmount = bookingFee + platformClientFeeAmount; // paid after acceptance
+        const remainingDueAmount = Math.max(serviceFee - bookingFee, 0);
 
         const orderNo = await generateOrderNo(ctx);
 
@@ -57,13 +119,31 @@ export const createBooking = mutation({
             startTime: args.startTime,
             endTime,
             status: "PENDING",
-            proposedTotal,
-            bookingFee,
+
+            // Snapshot pricing
+            currency,
             serviceFee,
-            tax,
+            bookingFee,
+            tax: 0,
+            proposedTotal: serviceFee, // total service value, not “pay now”
+
+            platformClientFeePercent: clientFeePercent,
+            platformCreativeFeePercent: creativeFeePercent,
+            platformClientFeeAmount,
+            platformCreativeFeeAmount,
+
+            upfrontChargeAmount,
+            remainingDueAmount,
+            paymentPhase: "NONE",
+
             note: args.note,
             jobCompletionDocs: [],
             updatedAt: Date.now(),
+
+            // Rescheduling details
+            rescheduleStatus: "NONE",
+            rescheduleCount: 0,
+            rescheduleHistory: [],
         });
 
         // Get client name for notification
@@ -86,7 +166,16 @@ export const createBooking = mutation({
             metaUser: clientId,
         });
 
-        return { bookingId, orderNo, total: proposedTotal };
+        return {
+            bookingId,
+            orderNo,
+            currency,
+            serviceFee,
+            bookingFee,
+            platformClientFeeAmount,
+            dueNow: upfrontChargeAmount,
+            dueAfterCompletion: remainingDueAmount,
+        };
     },
 });
 

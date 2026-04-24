@@ -14,25 +14,37 @@ const DEFAULT_CONFIG: Array<{
     // ==========================================
     {
         key: "platform_fee_percent",
+        value: 20,
+        description: "Total platform fee percentage on service fee",
+        category: "FEES" as const,
+        isEditable: true,
+    },
+    {
+        key: "platform_fee_percent_client",
+        value: 5,
+        description: "Platform fee percentage paid by client on service fee",
+        category: "FEES" as const,
+        isEditable: true,
+    },
+    {
+        key: "platform_fee_percent_creative",
         value: 15,
-        description: "Platform fee percentage taken from each transaction",
+        description: "Platform fee percentage paid by creative on service fee",
         category: "FEES" as const,
         isEditable: true,
     },
     {
-        key: "stripe_fee_split_client",
-        value: 50,
-        description:
-            "Percentage of Stripe processing fee paid by client (0-100)",
-        category: "FEES" as const,
+        key: "booking_fee_percent_min",
+        value: 20,
+        description: "Minimum booking fee percent of service fee",
+        category: "BOOKINGS" as const,
         isEditable: true,
     },
     {
-        key: "stripe_fee_split_creative",
+        key: "booking_fee_percent_max",
         value: 50,
-        description:
-            "Percentage of Stripe processing fee paid by creative (0-100)",
-        category: "FEES" as const,
+        description: "Maximum booking fee percent of service fee",
+        category: "BOOKINGS" as const,
         isEditable: true,
     },
     {

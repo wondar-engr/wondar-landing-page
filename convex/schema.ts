@@ -27,6 +27,11 @@ import {
     UserRoleUnion,
     WaitlistStatusUnion,
     WaitlistInterestUnion,
+    BookingPaymentPhaseUnion,
+    TransactionPhaseUnion,
+    ProfitSourceUnion,
+    ProfitStatusUnion,
+    RescheduleStatusUnion,
 } from "./unions";
 
 const schema = defineSchema({
@@ -278,11 +283,23 @@ const schema = defineSchema({
 
         status: BookingStatusUnion,
 
+        currency: v.string(), // "usd"
+
         // Financial Summary
         proposedTotal: v.number(),
         bookingFee: v.number(),
         serviceFee: v.number(),
         tax: v.number(),
+
+        platformClientFeePercent: v.number(), // 5
+        platformCreativeFeePercent: v.number(), // 15
+        platformClientFeeAmount: v.number(), // 5% of full service fee
+        platformCreativeFeeAmount: v.number(), // 15% of full service fee
+
+        upfrontChargeAmount: v.number(), // bookingFee + platformClientFeeAmount
+        remainingDueAmount: v.number(), // serviceFee - bookingFee
+
+        paymentPhase: BookingPaymentPhaseUnion, // NONE -> ... -> FULLY_SETTLED
 
         note: v.optional(v.string()),
 
@@ -303,6 +320,50 @@ const schema = defineSchema({
             }),
         ),
 
+        // Rescheduling details
+        rescheduleStatus: v.optional(RescheduleStatusUnion),
+        rescheduleCount: v.optional(v.number()),
+        rescheduleRequest: v.optional(
+            v.object({
+                requestedBy: v.string(), // userId
+                requestedAt: v.number(),
+                reason: v.optional(v.string()),
+
+                oldDateBooked: v.number(),
+                oldStartTime: v.number(),
+                oldEndTime: v.number(),
+
+                newDateBooked: v.number(),
+                newStartTime: v.number(),
+                newEndTime: v.number(),
+
+                status: RescheduleStatusUnion, // REQUESTED/APPROVED/REJECTED/EXPIRED
+                respondedBy: v.optional(v.string()),
+                respondedAt: v.optional(v.number()),
+                responseReason: v.optional(v.string()),
+                expiresAt: v.number(), // e.g. request + 24h
+            }),
+        ),
+        rescheduleHistory: v.optional(
+            v.array(
+                v.object({
+                    requestedBy: v.string(),
+                    requestedAt: v.number(),
+                    reason: v.optional(v.string()),
+                    oldDateBooked: v.number(),
+                    oldStartTime: v.number(),
+                    oldEndTime: v.number(),
+                    newDateBooked: v.number(),
+                    newStartTime: v.number(),
+                    newEndTime: v.number(),
+                    status: RescheduleStatusUnion,
+                    respondedBy: v.optional(v.string()),
+                    respondedAt: v.optional(v.number()),
+                    responseReason: v.optional(v.string()),
+                    expiresAt: v.number(),
+                }),
+            ),
+        ),
         updatedAt: v.number(),
     })
         .index("by_orderNo", ["orderNo"])
@@ -402,6 +463,10 @@ const schema = defineSchema({
         creativeId: v.string(),
         serviceId: v.id("services"),
 
+        // NEW: multi-charge lifecycle
+        phase: TransactionPhaseUnion, // UPFRONT | FINAL
+        sequence: v.number(), // 1 or 2 (optional but useful)
+
         // Stripe IDs
         stripePaymentIntentId: v.string(),
         stripeChargeId: v.optional(v.string()),
@@ -411,18 +476,8 @@ const schema = defineSchema({
         currency: v.string(), // "usd", "gbp", etc.
 
         // Breakdown
-        serviceFee: v.number(), // Base service fee
-        bookingFee: v.number(), // Non-refundable deposit
-        travelFee: v.number(), // If applicable
-        subtotal: v.number(), // serviceFee + travelFee
-
-        // Fees
-        platformFeePercent: v.number(), // e.g., 15
-        platformFeeAmount: v.number(), // Calculated platform fee
-
-        stripeFeeAmount: v.number(), // Stripe processing fee
-        clientStripeFeeShare: v.number(), // Client's 50% of Stripe fee
-        creativeStripeFeeShare: v.number(), // Creative's 50% of Stripe fee
+        travelFee: v.optional(v.number()), // If applicable
+        subtotal: v.optional(v.number()), // serviceFee + travelFee
 
         // Final amounts
         totalCharged: v.number(), // What client paid (subtotal + clientStripeFeeShare)
@@ -437,7 +492,6 @@ const schema = defineSchema({
         refundedAt: v.optional(v.number()),
 
         // Timestamps
-        createdAt: v.number(),
         completedAt: v.optional(v.number()),
 
         // Metadata
@@ -455,7 +509,28 @@ const schema = defineSchema({
         .index("by_creativeId", ["creativeId"])
         .index("by_stripePaymentIntentId", ["stripePaymentIntentId"])
         .index("by_status", ["status"])
-        .index("by_createdAt", ["createdAt"]),
+        .index("by_booking_phase", ["bookingId", "phase"]),
+
+    // NEW: platform profit ledger
+    platformProfits: defineTable({
+        bookingId: v.id("bookings"),
+        transactionId: v.id("transactions"),
+
+        source: ProfitSourceUnion, // CLIENT_FEE | CREATIVE_FEE
+        amount: v.number(), // cents
+        currency: v.string(),
+
+        status: ProfitStatusUnion, // PENDING | RECOGNIZED | REVERSED
+        recognizedAt: v.optional(v.number()),
+        reversedAt: v.optional(v.number()),
+
+        refundId: v.optional(v.id("refunds")),
+        note: v.optional(v.string()),
+    })
+        .index("by_bookingId", ["bookingId"])
+        .index("by_transactionId", ["transactionId"])
+        .index("by_status", ["status"])
+        .index("by_source", ["source"]),
 
     // ==========================================
     // PAYOUTS

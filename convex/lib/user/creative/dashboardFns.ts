@@ -1,6 +1,14 @@
 import { query } from "@convex/_generated/server";
 import { getAuthUserId } from "@convex/auth";
 
+function calculateCreativeEarning(
+    totalFee: number,
+    clientPlatformFee: number,
+    creativePlatformFee: number,
+) {
+    return totalFee - (clientPlatformFee + creativePlatformFee);
+}
+
 // Helper to calculate profile completeness
 function calculateProfileCompleteness(
     profile: any,
@@ -129,9 +137,6 @@ export const getDashboardData = query({
         // ==========================================
         // EARNINGS (from completed bookings)
         // ==========================================
-        // Calculate earnings (85% of service fee goes to creative)
-        const CREATIVE_PERCENTAGE = 0.85;
-
         // Today's earnings
         const todayEarnings = allBookings
             .filter(
@@ -140,7 +145,16 @@ export const getDashboardData = query({
                     b.dateBooked >= startOfToday.getTime() &&
                     b.dateBooked <= endOfToday.getTime(),
             )
-            .reduce((sum, b) => sum + b.serviceFee * CREATIVE_PERCENTAGE, 0);
+            .reduce(
+                (sum, b) =>
+                    sum +
+                    calculateCreativeEarning(
+                        b.proposedTotal,
+                        b.platformClientFeeAmount,
+                        b.platformCreativeFeeAmount,
+                    ),
+                0,
+            );
 
         // This week's earnings (by day)
         const weeklyEarningsMap: Record<number, number> = {
@@ -155,7 +169,11 @@ export const getDashboardData = query({
 
         completedThisWeek.forEach(b => {
             const dayOfWeek = new Date(b.dateBooked).getDay();
-            weeklyEarningsMap[dayOfWeek] += b.serviceFee * CREATIVE_PERCENTAGE;
+            weeklyEarningsMap[dayOfWeek] += calculateCreativeEarning(
+                b.proposedTotal,
+                b.platformClientFeeAmount,
+                b.platformCreativeFeeAmount,
+            );
         });
 
         const weeklyEarnings = [
@@ -184,7 +202,16 @@ export const getDashboardData = query({
                     b.dateBooked >= startOfLastWeek.getTime() &&
                     b.dateBooked < startOfWeek.getTime(),
             )
-            .reduce((sum, b) => sum + b.serviceFee * CREATIVE_PERCENTAGE, 0);
+            .reduce(
+                (sum, b) =>
+                    sum +
+                    calculateCreativeEarning(
+                        b.proposedTotal,
+                        b.platformClientFeeAmount,
+                        b.platformCreativeFeeAmount,
+                    ),
+                0,
+            );
 
         const earningsPercentChange =
             lastWeekTotal > 0

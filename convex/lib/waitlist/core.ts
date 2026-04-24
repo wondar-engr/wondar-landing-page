@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "../../_generated/server";
 import { nanoid } from "nanoid";
 import { WaitlistInterestUnion } from "../../../convex/unions";
-import { api } from "../../_generated/api";
+import { api, internal } from "../../_generated/api";
 
 // Generate a unique referral code
 function generateReferralCode(): string {
@@ -105,6 +105,26 @@ export const join = mutation({
                     position,
                     referralCode,
                     referralLink,
+                },
+            );
+
+            const telegramText = [
+                `New Waitlist Signup!`,
+                `─────────────────`,
+                `✉️ Email: ${args.email.toLowerCase()}`,
+                `─────────────────`,
+                `📈 Position: #${position}`,
+                `🎟️ Referral Code: ${referralCode}`,
+                `🔗 Referred By: ${validReferral ? `\`${referredBy}\`` : "None"}`,
+                `─────────────────`,
+                `🚀 Total Signups: ${position} Users`,
+            ].join("\n");
+
+            await ctx.scheduler.runAfter(
+                0,
+                internal.lib.appActions.notifications.sendTelegramNotification,
+                {
+                    text: telegramText,
                 },
             );
 

@@ -1,3 +1,4 @@
+import { sendNotification } from "@convex/lib/notifications";
 import { internalMutation } from "../_generated/server";
 import { v } from "convex/values";
 
@@ -135,18 +136,45 @@ export const handlePaymentSucceeded = internalMutation({
             return;
         }
 
+        if (transaction.status === "SUCCEEDED") return; // idempotent
+
         // Update transaction status
         await ctx.db.patch(transaction._id, {
             status: "SUCCEEDED",
             completedAt: Date.now(),
         });
 
+        // Update stripe account balance if needed (optional, since we can get this from Stripe directly)
+        const stripeAccount = await ctx.db
+            .query("stripeAccounts")
+            .withIndex("by_userId", q => q.eq("userId", transaction.creativeId))
+            .unique();
+        if (stripeAccount) {
+            await ctx.db.patch(stripeAccount._id, {
+                balance: stripeAccount.balance
+                    ? stripeAccount.balance + args.amount
+                    : args.amount,
+            });
+        }
+
         // Update booking status
         const booking = await ctx.db.get(transaction.bookingId);
         if (booking) {
-            await ctx.db.patch(booking._id, {
-                status: "PAID",
-            });
+            if (transaction.phase === "UPFRONT") {
+                await ctx.db.patch(booking._id, {
+                    paymentPhase: "UPFRONT_PAID",
+                    status:
+                        booking.status === "CONFIRMED"
+                            ? "PAID"
+                            : booking.status,
+                    updatedAt: Date.now(),
+                });
+            } else {
+                await ctx.db.patch(booking._id, {
+                    paymentPhase: "FULLY_SETTLED",
+                    updatedAt: Date.now(),
+                });
+            }
         }
 
         // Update payment record if exists
@@ -162,6 +190,27 @@ export const handlePaymentSucceeded = internalMutation({
                 status: "SUCCESS",
             });
         }
+
+        await sendNotification(ctx, {
+            userId: transaction.creativeId,
+            title:
+                transaction.phase === "UPFRONT"
+                    ? "Upfront Payment Received"
+                    : "Final Payment Received",
+            body:
+                transaction.phase === "UPFRONT"
+                    ? `Upfront payment received for booking.`
+                    : `Final payment received for booking.`,
+            meta: {
+                type: "PAYMENT_RECEIVED",
+                bookingId: transaction.bookingId,
+                phase: transaction.phase,
+                amount: transaction.creativeEarnings.toString(),
+                currency: transaction.currency,
+            },
+            type: "PAYMENT",
+            metaUser: transaction.clientId,
+        });
 
         console.log(
             `[Webhook] Payment succeeded: ${args.stripePaymentIntentId}`,
