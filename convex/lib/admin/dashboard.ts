@@ -18,7 +18,7 @@ export const getKPIStats = query({
             0,
         );
         const totalPlatformFees = successfulTransactions.reduce(
-            (sum, t) => sum + t.platformFeeAmount,
+            (sum, t) => sum + t.platformEarnings,
             0,
         );
 
@@ -355,12 +355,12 @@ export const getRecentTransactions = query({
                     _id: tx._id,
                     orderNo: booking?.orderNo || "Unknown",
                     amount: tx.totalCharged,
-                    platformFee: tx.platformFeeAmount,
+                    platformFee: tx.platformEarnings,
                     status: tx.status,
                     clientName: client
                         ? `${client.firstName || ""} ${client.lastName || ""}`.trim()
                         : "Unknown",
-                    createdAt: tx.createdAt,
+                    createdAt: tx._creationTime,
                 };
             }),
         );
