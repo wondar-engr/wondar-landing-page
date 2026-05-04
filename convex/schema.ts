@@ -32,6 +32,10 @@ import {
     ProfitSourceUnion,
     ProfitStatusUnion,
     RescheduleStatusUnion,
+    BookingCompletedByUnion,
+    BookingDisputeReasonUnion,
+    BookingDisputeStatusUnion,
+    BookingDisputeResolutionUnion,
 } from "./unions";
 
 const schema = defineSchema({
@@ -122,6 +126,8 @@ const schema = defineSchema({
             }),
         ),
         onboardingComplete: v.boolean(),
+
+        noShowCount: v.optional(v.number()),
     })
         .index("by_userId", ["userId"])
         .index("by_location", ["workAddress.lat", "workAddress.lng"])
@@ -365,6 +371,14 @@ const schema = defineSchema({
             ),
         ),
         updatedAt: v.number(),
+
+        cancelReason: v.optional(v.string()),
+        cancelledAt: v.optional(v.number()),
+        disputeReason: v.optional(v.string()),
+        disputeOpenedAt: v.optional(v.number()),
+        disputeOverdueNotified: v.optional(v.boolean()),
+        completedAt: v.optional(v.number()),
+        completedBy: v.optional(BookingCompletedByUnion), // "CREATIVE" | "SYSTEM"
     })
         .index("by_orderNo", ["orderNo"])
         .index("by_client", ["clientId"])
@@ -508,6 +522,7 @@ const schema = defineSchema({
         .index("by_clientId", ["clientId"])
         .index("by_creativeId", ["creativeId"])
         .index("by_stripePaymentIntentId", ["stripePaymentIntentId"])
+        .index("by_stripeChargeId", ["stripeChargeId"])
         .index("by_status", ["status"])
         .index("by_booking_phase", ["bookingId", "phase"]),
 
@@ -655,6 +670,33 @@ const schema = defineSchema({
         .index("by_userId", ["userId"])
         .index("by_service", ["serviceId"])
         .index("by_both", ["userId", "serviceId"]),
+    bookingDisputes: defineTable({
+        bookingId: v.id("bookings"),
+        clientId: v.string(),
+        creativeId: v.string(),
+        reason: BookingDisputeReasonUnion, // CREATIVE_NO_SHOW | CLIENT_NO_PAY | SERVICE_QUALITY | OTHER
+
+        // Client submission
+        clientStatement: v.optional(v.string()),
+        clientEvidence: v.optional(v.array(v.string())), // storage URLs, max 2
+        clientSubmittedAt: v.optional(v.number()),
+
+        // Creative submission
+        creativeStatement: v.optional(v.string()),
+        creativeEvidence: v.optional(v.array(v.string())), // storage URLs, max 2
+        creativeSubmittedAt: v.optional(v.number()),
+
+        // Resolution
+        status: BookingDisputeStatusUnion,
+        resolution: v.optional(BookingDisputeResolutionUnion), // REFUND_CLIENT | RELEASE_CREATIVE | SPLIT | NO_ACTION
+        resolvedBy: v.optional(v.string()),
+        resolvedAt: v.optional(v.number()),
+        resolutionNote: v.optional(v.string()),
+    })
+        .index("by_bookingId", ["bookingId"])
+        .index("by_clientId", ["clientId"])
+        .index("by_creativeId", ["creativeId"])
+        .index("by_status", ["status"]),
 });
 
 export default schema;

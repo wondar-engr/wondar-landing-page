@@ -12,6 +12,7 @@ export const AccountStatusUnion = v.union(
     v.literal("SUSPENDED"),
     v.literal("PENDING"),
     v.literal("REJECTED"),
+    v.literal("UNDER_REVIEW"),
 );
 
 export const PlatformDeviceUnion = v.union(
@@ -138,6 +139,7 @@ export const TransactionStatusUnion = v.union(
     v.literal("FAILED"), // Payment failed
     v.literal("REFUNDED"), // Fully refunded
     v.literal("PARTIALLY_REFUNDED"), // Partially refunded
+    v.literal("TRANSFER_REVERSED"),
 );
 
 export const PayoutStatusUnion = v.union(
@@ -221,4 +223,31 @@ export const RescheduleStatusUnion = v.union(
     v.literal("APPROVED"),
     v.literal("REJECTED"),
     v.literal("EXPIRED"),
+    v.literal("CANCELLED"),
+);
+
+export const BookingCompletedByUnion = v.union(
+    v.literal("CREATIVE"),
+    v.literal("SYSTEM"),
+);
+
+export const BookingDisputeReasonUnion = v.union(
+    v.literal("CREATIVE_NO_SHOW"), // Issue with the service provided
+    v.literal("CLIENT_NO_PAY"), // Problem with the payment
+    v.literal("SERVICE_QUALITY"), // Issue with the service quality
+    v.literal("OTHER"), // Other reasons
+);
+
+export const BookingDisputeStatusUnion = v.union(
+    v.literal("OPEN"), // Dispute created, awaiting response
+    v.literal("IN_REVIEW"), // Being reviewed by support team
+    v.literal("RESOLVED"), // Resolved in favor of either party
+    v.literal("REJECTED"), // Rejected due to insufficient evidence
+);
+
+export const BookingDisputeResolutionUnion = v.union(
+    v.literal("REFUND_CLIENT"), // Dispute resolved in favor of client
+    v.literal("RELEASE_CREATIVE"), // Dispute resolved in favor of creative
+    v.literal("SPLIT"), // Dispute resolved with split refund/payment
+    v.literal("NO_ACTION"), // Dispute resolved with no action (e.g. insufficient evidence)
 );

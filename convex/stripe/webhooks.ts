@@ -1,6 +1,7 @@
 import { sendNotification } from "@convex/lib/notifications";
 import { internalMutation } from "../_generated/server";
 import { v } from "convex/values";
+import { internal } from "@convex/_generated/api";
 
 // ==========================================
 // ACCOUNT EVENTS
@@ -116,6 +117,7 @@ export const handleAccountDeauthorized = internalMutation({
 export const handlePaymentSucceeded = internalMutation({
     args: {
         stripePaymentIntentId: v.string(),
+        stripeChargeId: v.optional(v.string()), // Added to fix Gap 1
         amount: v.number(),
         currency: v.string(),
         metadata: v.any(),
@@ -133,88 +135,95 @@ export const handlePaymentSucceeded = internalMutation({
             console.log(
                 `[Webhook] Transaction not found for PI: ${args.stripePaymentIntentId}`,
             );
-            return;
+            return {
+                ok: false,
+            };
         }
 
-        if (transaction.status === "SUCCEEDED") return; // idempotent
+        if (transaction.status === "SUCCEEDED") {
+            return { ok: true, alreadyProcessed: true };
+        } // idempotent
 
         // Update transaction status
         await ctx.db.patch(transaction._id, {
             status: "SUCCEEDED",
             completedAt: Date.now(),
+            stripeChargeId: args.stripeChargeId,
+            // stripeTransferId patched later by transfer.created
         });
-
-        // Update stripe account balance if needed (optional, since we can get this from Stripe directly)
-        const stripeAccount = await ctx.db
-            .query("stripeAccounts")
-            .withIndex("by_userId", q => q.eq("userId", transaction.creativeId))
-            .unique();
-        if (stripeAccount) {
-            await ctx.db.patch(stripeAccount._id, {
-                balance: stripeAccount.balance
-                    ? stripeAccount.balance + args.amount
-                    : args.amount,
-            });
-        }
 
         // Update booking status
         const booking = await ctx.db.get(transaction.bookingId);
-        if (booking) {
-            if (transaction.phase === "UPFRONT") {
-                await ctx.db.patch(booking._id, {
-                    paymentPhase: "UPFRONT_PAID",
-                    status:
-                        booking.status === "CONFIRMED"
-                            ? "PAID"
-                            : booking.status,
-                    updatedAt: Date.now(),
-                });
-            } else {
-                await ctx.db.patch(booking._id, {
-                    paymentPhase: "FULLY_SETTLED",
-                    updatedAt: Date.now(),
-                });
-            }
+        if (!booking) {
+            console.log(
+                `[Webhook] Booking not found for transaction: ${transaction._id}`,
+            );
+            return { ok: false };
         }
 
-        // Update payment record if exists
-        const payment = await ctx.db
-            .query("payments")
-            .withIndex("by_booking", q =>
-                q.eq("bookingId", transaction.bookingId),
-            )
-            .unique();
-
-        if (payment) {
-            await ctx.db.patch(payment._id, {
-                status: "SUCCESS",
+        if (transaction.phase === "UPFRONT") {
+            await ctx.db.patch(booking._id, {
+                paymentPhase: "UPFRONT_PAID",
+                status:
+                    booking.status === "CONFIRMED" ? "PAID" : booking.status,
+                updatedAt: Date.now(),
             });
+
+            await sendNotification(ctx, {
+                userId: booking.clientId,
+                title: "Payment Confirmed",
+                body: "Your upfront payment was received. The creative will start your service soon.",
+                type: "BOOKING",
+                meta: { screen: "booking_detail", id: booking._id },
+            });
+
+            await sendNotification(ctx, {
+                userId: booking.creativeId,
+                title: "Upfront Payment Received",
+                body: "The client has completed their upfront payment. You're good to go.",
+                type: "BOOKING",
+                meta: { screen: "booking_detail", id: booking._id },
+            });
+
+            await ctx.scheduler.runAfter(
+                0,
+                internal.lib.appActions.notifications.sendTelegramNotification,
+                {
+                    text: `✅ Upfront payment received\nBooking: ${booking._id}\nAmount: $${args.amount / 100}`,
+                },
+            );
+        } else if (transaction.phase === "FINAL") {
+            await ctx.db.patch(booking._id, {
+                paymentPhase: "FULLY_SETTLED",
+                updatedAt: Date.now(),
+            });
+
+            await sendNotification(ctx, {
+                userId: booking.clientId,
+                title: "Payment Complete",
+                body: "Your final payment was received. Booking fully settled.",
+                type: "BOOKING",
+                meta: { screen: "booking_detail", id: booking._id },
+            });
+
+            await sendNotification(ctx, {
+                userId: booking.creativeId,
+                title: "Final Payment Received",
+                body: "The client has completed their final payment. Booking fully settled.",
+                type: "BOOKING",
+                meta: { screen: "booking_detail", id: booking._id },
+            });
+
+            await ctx.scheduler.runAfter(
+                0,
+                internal.lib.appActions.notifications.sendTelegramNotification,
+                {
+                    text: `✅ Final payment received\nBooking: ${booking._id}\nAmount: $${args.amount / 100}`,
+                },
+            );
         }
 
-        await sendNotification(ctx, {
-            userId: transaction.creativeId,
-            title:
-                transaction.phase === "UPFRONT"
-                    ? "Upfront Payment Received"
-                    : "Final Payment Received",
-            body:
-                transaction.phase === "UPFRONT"
-                    ? `Upfront payment received for booking.`
-                    : `Final payment received for booking.`,
-            meta: {
-                type: "PAYMENT_RECEIVED",
-                bookingId: transaction.bookingId,
-                phase: transaction.phase,
-                amount: transaction.creativeEarnings.toString(),
-                currency: transaction.currency,
-            },
-            type: "PAYMENT",
-            metaUser: transaction.clientId,
-        });
-
-        console.log(
-            `[Webhook] Payment succeeded: ${args.stripePaymentIntentId}`,
-        );
+        return { ok: true };
     },
 });
 
@@ -238,30 +247,47 @@ export const handlePaymentFailed = internalMutation({
             console.log(
                 `[Webhook] Transaction not found for failed PI: ${args.stripePaymentIntentId}`,
             );
-            return;
+            return {
+                ok: false,
+            };
+        }
+
+        if (transaction.status === "FAILED") {
+            return { ok: true, alreadyProcessed: true };
         }
 
         await ctx.db.patch(transaction._id, {
             status: "FAILED",
         });
 
-        // Update payment record if exists
-        const payment = await ctx.db
-            .query("payments")
-            .withIndex("by_booking", q =>
-                q.eq("bookingId", transaction.bookingId),
-            )
-            .unique();
+        const booking = await ctx.db.get(transaction.bookingId);
+        if (!booking) return { ok: false };
 
-        if (payment) {
-            await ctx.db.patch(payment._id, {
-                status: "FAILED",
-            });
-        }
+        // ✅ Fix Gap 5: notify client + keep booking phase so they can retry
+        await sendNotification(ctx, {
+            userId: booking.clientId,
+            title: "Payment Failed",
+            body: `Your payment could not be processed. Please try again.`,
+            type: "BOOKING",
+            meta: {
+                screen: "booking_detail",
+                id: booking._id,
+                action:
+                    transaction.phase === "UPFRONT"
+                        ? "PAY_UPFRONT"
+                        : "PAY_FINAL",
+            },
+        });
 
-        console.log(
-            `[Webhook] Payment failed: ${args.stripePaymentIntentId} - ${args.errorMessage}`,
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendTelegramNotification,
+            {
+                text: `❌ Payment failed\nBooking: ${booking._id}\nReason: ${args.errorMessage}`,
+            },
         );
+
+        return { ok: true };
     },
 });
 
@@ -284,7 +310,7 @@ export const handleChargeRefunded = internalMutation({
             console.log(
                 `[Webhook] No payment intent for refunded charge: ${args.stripeChargeId}`,
             );
-            return;
+            return { ok: false };
         }
 
         const transaction = await ctx.db
@@ -298,7 +324,7 @@ export const handleChargeRefunded = internalMutation({
             console.log(
                 `[Webhook] Transaction not found for refund: ${paymentIntentId}`,
             );
-            return;
+            return { ok: false };
         }
 
         // Determine if fully or partially refunded
@@ -315,7 +341,24 @@ export const handleChargeRefunded = internalMutation({
         if (booking && isFullRefund) {
             await ctx.db.patch(booking._id, {
                 status: "REFUNDED",
+                updatedAt: Date.now(),
             });
+
+            await sendNotification(ctx, {
+                userId: booking.clientId,
+                title: "Refund Processed",
+                body: `Your refund of ${(args.amountRefunded / 100).toFixed(2)} has been processed.`,
+                type: "BOOKING",
+                meta: { screen: "booking_detail", id: booking._id },
+            });
+
+            await ctx.scheduler.runAfter(
+                0,
+                internal.lib.appActions.notifications.sendTelegramNotification,
+                {
+                    text: `💸 Refund processed\nBooking: ${booking._id}\nAmount: $${args.amountRefunded / 100}`,
+                },
+            );
         }
 
         // Update payment record
@@ -335,6 +378,8 @@ export const handleChargeRefunded = internalMutation({
         console.log(
             `[Webhook] Charge refunded: ${args.stripeChargeId} - $${args.amountRefunded / 100}`,
         );
+
+        return { ok: true };
     },
 });
 
@@ -505,34 +550,81 @@ export const handlePayoutCreated = internalMutation({
 export const handleTransferCreated = internalMutation({
     args: {
         stripeTransferId: v.string(),
+        sourceChargeId: v.union(v.string(), v.null()),
+        destinationAccountId: v.string(),
         amount: v.number(),
         currency: v.string(),
-        destinationAccountId: v.string(),
-        sourceTransactionId: v.union(v.string(), v.null()),
     },
     handler: async (ctx, args) => {
-        const sourceTransactionId = args.sourceTransactionId;
-        // If we have a source transaction (payment intent), update it
-        if (sourceTransactionId) {
-            const transaction = await ctx.db
-                .query("transactions")
-                .withIndex("by_stripePaymentIntentId", q =>
-                    q.eq("stripePaymentIntentId", sourceTransactionId),
-                )
-                .unique();
+        const sourceChargeId = args.sourceChargeId;
 
-            if (transaction) {
-                await ctx.db.patch(transaction._id, {
-                    stripeTransferId: args.stripeTransferId,
-                });
-                console.log(
-                    `[Webhook] Updated transaction with transfer: ${args.stripeTransferId}`,
-                );
-            }
+        if (!sourceChargeId) {
+            console.log(
+                `[Webhook] Transfer ${args.stripeTransferId} has no source charge — skipping transaction link`,
+            );
+            return;
+        }
+        const transaction = await ctx.db
+            .query("transactions")
+            .withIndex("by_stripeChargeId", q =>
+                q.eq("stripeChargeId", sourceChargeId),
+            )
+            .unique();
+
+        if (!transaction) {
+            console.log(
+                `[Webhook] No transaction found for charge: ${args.sourceChargeId}`,
+            );
+            return;
+        }
+        await ctx.db.patch(transaction._id, {
+            stripeTransferId: args.stripeTransferId,
+        });
+
+        console.log(
+            `[Webhook] Linked transfer ${args.stripeTransferId} → transaction ${transaction._id}`,
+        );
+    },
+});
+
+export const handleTransferReversed = internalMutation({
+    args: {
+        stripeTransferId: v.string(),
+        amountReversed: v.number(),
+    },
+    handler: async (ctx, args) => {
+        const transaction = await ctx.db
+            .query("transactions")
+            .filter(q =>
+                q.eq(q.field("stripeTransferId"), args.stripeTransferId),
+            )
+            .first();
+
+        if (!transaction) {
+            console.log(
+                `[Webhook] No transaction found for reversed transfer: ${args.stripeTransferId}`,
+            );
+            return { ok: false };
+        }
+
+        await ctx.db.patch(transaction._id, {
+            status: "TRANSFER_REVERSED",
+        });
+
+        const booking = await ctx.db.get(transaction.bookingId);
+        if (booking) {
+            await ctx.scheduler.runAfter(
+                0,
+                internal.lib.appActions.notifications.sendTelegramNotification,
+                {
+                    text: `⚠️ Transfer reversed\nBooking: ${booking._id}\nAmount reversed: $${args.amountReversed / 100}`,
+                },
+            );
         }
 
         console.log(
-            `[Webhook] Transfer created: ${args.stripeTransferId} - $${args.amount / 100} to ${args.destinationAccountId}`,
+            `[Webhook] Transfer reversed: ${args.stripeTransferId} - $${args.amountReversed / 100}`,
         );
+        return { ok: true };
     },
 });

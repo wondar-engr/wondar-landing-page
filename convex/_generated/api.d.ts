@@ -9,6 +9,8 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as crons from "../crons.js";
+import type * as crons_bookingFns from "../crons/bookingFns.js";
 import type * as crons_bookings from "../crons/bookings.js";
 import type * as email from "../email.js";
 import type * as http from "../http.js";
@@ -95,6 +97,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  crons: typeof crons;
+  "crons/bookingFns": typeof crons_bookingFns;
   "crons/bookings": typeof crons_bookings;
   email: typeof email;
   http: typeof http;

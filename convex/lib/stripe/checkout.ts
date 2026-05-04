@@ -59,7 +59,7 @@ export const createUpfrontCheckoutSession = action({
                         unit_amount: upfrontAmount,
                         product_data: {
                             name: `Booking upfront payment (${booking.orderNo})`,
-                            description: "Booking fee + client platform fee",
+                            description: "Booking fee + Platform fee",
                         },
                     },
                 },

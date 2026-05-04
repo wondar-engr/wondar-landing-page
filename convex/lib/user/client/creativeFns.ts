@@ -111,10 +111,20 @@ export const getNearbyCreatives = query({
         radiusInMiles: v.number(),
         limit: v.optional(v.number()),
         categoryId: v.optional(v.id("serviceCategories")),
+        minRating: v.optional(v.number()),
+        maxPrice: v.optional(v.number()),
     },
     handler: async (
         ctx,
-        { lat, lng, radiusInMiles, limit = 20, categoryId },
+        {
+            lat,
+            lng,
+            radiusInMiles,
+            limit = 20,
+            categoryId,
+            minRating,
+            maxPrice,
+        },
     ) => {
         const bounds = getBoundingBox(lat, lng, radiusInMiles);
 
@@ -173,6 +183,9 @@ export const getNearbyCreatives = query({
                 }
 
                 startingPrice = Math.min(...services.map(s => s.serviceFee));
+
+                // add filter after startingPrice is calculated:
+                if (maxPrice && startingPrice > maxPrice) return null;
 
                 const skills = await Promise.all(
                     creative.skills?.map(async skillId => {

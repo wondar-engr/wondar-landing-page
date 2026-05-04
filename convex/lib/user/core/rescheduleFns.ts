@@ -36,8 +36,7 @@ export const requestReschedule = mutation({
         if (!booking) throw new Error("Booking not found");
 
         const isClient = booking.clientId === userId;
-        const isCreative = booking.creativeId === userId;
-        if (!isClient && !isCreative) throw new Error("Not authorized");
+        if (!isClient) throw new Error("Only client can request reschedule");
 
         if (
             booking.status === "IN_PROGRESS" ||
@@ -271,6 +270,55 @@ export const expireRescheduleRequest = mutation({
             ],
             rescheduleRequest: undefined,
             updatedAt: Date.now(),
+        });
+
+        return { success: true };
+    },
+});
+
+export const cancelRescheduleRequest = mutation({
+    args: { bookingId: v.id("bookings") },
+    handler: async (ctx, { bookingId }) => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) throw new Error("Not authenticated");
+
+        const booking = await ctx.db.get(bookingId);
+        if (!booking) throw new Error("Booking not found");
+
+        if (booking.clientId !== userId)
+            throw new Error(
+                "Only the client can withdraw a reschedule request",
+            );
+
+        if (booking.rescheduleStatus !== "REQUESTED")
+            throw new Error("No pending reschedule request to withdraw");
+
+        const req = booking.rescheduleRequest;
+
+        if (!req) throw new Error("Reschedule request data missing");
+
+        await ctx.db.patch(bookingId, {
+            rescheduleStatus: "NONE",
+            rescheduleRequest: undefined,
+            rescheduleHistory: [
+                ...(booking.rescheduleHistory ?? []),
+                {
+                    ...req,
+                    status: "CANCELLED",
+                    respondedBy: userId,
+                    respondedAt: Date.now(),
+                    responseReason: "Withdrawn by client",
+                },
+            ],
+            updatedAt: Date.now(),
+        });
+
+        await sendNotification(ctx, {
+            userId: booking.creativeId,
+            title: "Reschedule Withdrawn",
+            body: "The client has withdrawn their reschedule request.",
+            type: "BOOKING",
+            meta: { screen: "booking_detail", id: bookingId },
         });
 
         return { success: true };

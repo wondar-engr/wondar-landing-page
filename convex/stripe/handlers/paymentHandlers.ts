@@ -8,8 +8,15 @@ export async function handlePaymentIntentSucceeded(
 ) {
     console.log(`[Stripe] Payment succeeded: ${paymentIntent.id}`);
 
+    // ✅ Fix Gap 1: extract latest_charge — it's a string ID not an object
+    const stripeChargeId =
+        typeof paymentIntent.latest_charge === "string"
+            ? paymentIntent.latest_charge
+            : (paymentIntent.latest_charge?.id ?? undefined);
+
     await ctx.runMutation(internal.stripe.webhooks.handlePaymentSucceeded, {
         stripePaymentIntentId: paymentIntent.id,
+        stripeChargeId,
         amount: paymentIntent.amount,
         currency: paymentIntent.currency,
         metadata: paymentIntent.metadata,
