@@ -117,6 +117,7 @@ export const SystemConfigCategoryUnion = v.union(
     v.literal("BOOKINGS"),
     v.literal("NOTIFICATIONS"),
     v.literal("GENERAL"),
+    v.literal("SYSTEM"),
 );
 
 export const StripeAccountTypeUnion = v.union(
@@ -250,4 +251,33 @@ export const BookingDisputeResolutionUnion = v.union(
     v.literal("RELEASE_CREATIVE"), // Dispute resolved in favor of creative
     v.literal("SPLIT"), // Dispute resolved with split refund/payment
     v.literal("NO_ACTION"), // Dispute resolved with no action (e.g. insufficient evidence)
+);
+
+export const DisputeOpenedByUnion = v.union(
+    v.literal("CLIENT"), // Dispute opened by client
+    v.literal("CREATIVE"), // Dispute opened by creative
+    v.literal("SYSTEM"), // Dispute opened automatically by system (e.g. no-show)
+);
+
+export const DisputeOutcomeUnion = v.union(
+    v.literal("CLIENT_FAVORED"), // Dispute outcome in favor of client
+    v.literal("CREATIVE_FAVORED"), // Dispute outcome in favor of creative
+    v.literal("SPLIT"), // Dispute outcome with split refund/payment
+    v.literal("DISMISSED"), // No decision made (e.g. insufficient evidence)
+);
+
+export const MessageTypeUnion = v.union(
+    v.literal("TEXT"),
+    v.literal("IMAGE"),
+    v.literal("SYSTEM"),
+);
+
+export const PostVisibilityUnion = v.union(
+    v.literal("PUBLIC"),
+    v.literal("FOLLOWERS_ONLY"),
+);
+
+export const PostMediaTypeUnion = v.union(
+    v.literal("IMAGE"),
+    v.literal("VIDEO"),
 );

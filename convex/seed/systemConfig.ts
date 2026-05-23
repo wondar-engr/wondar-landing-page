@@ -199,6 +199,22 @@ const DEFAULT_CONFIG: Array<{
  * Seed system configuration
  * Run this once during initial setup
  */
+
+const TEST_CONFIG = {
+    key: "app_status",
+    value: {
+        maintenance: false,
+        message:
+            "We're currently performing scheduled maintenance. We'll be back shortly!",
+        expectedBackAt: null, // timestamp or null
+        allowedUserIds: [], // bypass list for admins to still get in
+    },
+    description: "Controls app-wide maintenance mode",
+    category: "SYSTEM" as const,
+    isEditable: true,
+    updatedAt: Date.now(),
+};
+
 export const seedSystemConfig = mutation({
     args: {},
     handler: async ctx => {
@@ -223,5 +239,32 @@ export const seedSystemConfig = mutation({
         }
 
         return { success: true, count: DEFAULT_CONFIG.length };
+    },
+});
+
+export const seedAppStatusSystemConfig = mutation({
+    args: {},
+    handler: async ctx => {
+        const now = Date.now();
+
+        for (const config of [TEST_CONFIG]) {
+            // Check if config already exists
+            const existing = await ctx.db
+                .query("systemConfig")
+                .withIndex("by_key", q => q.eq("key", config.key))
+                .unique();
+
+            if (!existing) {
+                await ctx.db.insert("systemConfig", {
+                    ...config,
+                    updatedAt: now,
+                });
+                console.log(`[SEED] Created config: ${config.key}`);
+            } else {
+                console.log(`[SEED] Config exists: ${config.key}`);
+            }
+        }
+
+        return { success: true, count: [TEST_CONFIG].length };
     },
 });

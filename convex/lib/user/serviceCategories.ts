@@ -33,3 +33,15 @@ export const getServiceCategoryById = query({
         return category;
     },
 });
+
+export const getAllServiceCategories = query({
+    args: {},
+    handler: async ctx => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) return null;
+
+        const categories = await ctx.db.query("serviceCategories").collect();
+
+        return categories;
+    },
+});

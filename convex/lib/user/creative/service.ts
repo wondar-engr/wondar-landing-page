@@ -1,3 +1,4 @@
+import { CustomError } from "@convex/utils/errorUtils";
 import { mutation, query } from "../../../_generated/server";
 import { getAuthUserId } from "../../../auth";
 import { ServiceStatusUnion, ServiceTravelOptionUnion } from "../../../unions";
@@ -39,35 +40,46 @@ export const createService = mutation({
         status: ServiceStatusUnion,
     },
     handler: async (ctx, args) => {
-        const userId = await getAuthUserId(ctx);
-        if (!userId) throw new Error("Unauthorized");
+        try {
+            const userId = await getAuthUserId(ctx);
+            if (!userId) throw new CustomError("Unauthorized");
 
-        const serviceId = await ctx.db.insert("services", {
-            userId,
-            name: args.name,
-            description: args.description,
-            categoryId: args.categoryId,
-            tags: args.tags,
-            paymentSystem: args.paymentSystem,
-            serviceFee: args.serviceFee,
-            bookingFee: args.bookingFee,
-            travelOption: args.travelOption,
-            travelFee: args.travelFee,
-            duration: args.duration,
-            bufferTime: args.bufferTime,
-            availability: args.availability,
-            banners: args.banners,
-            status: args.status,
-            deleteStatus: false,
-            stats: {
-                timesOrdered: 0,
-                timesCompleted: 0,
-                timesCancelled: 0,
-                timesRescheduled: 0,
-            },
-        });
+            const serviceId = await ctx.db.insert("services", {
+                userId,
+                name: args.name,
+                description: args.description,
+                categoryId: args.categoryId,
+                tags: args.tags,
+                paymentSystem: args.paymentSystem,
+                serviceFee: args.serviceFee,
+                bookingFee: args.bookingFee,
+                travelOption: args.travelOption,
+                travelFee: args.travelFee,
+                duration: args.duration,
+                bufferTime: args.bufferTime,
+                availability: args.availability,
+                banners: args.banners,
+                status: args.status,
+                deleteStatus: false,
+                stats: {
+                    timesOrdered: 0,
+                    timesCompleted: 0,
+                    timesCancelled: 0,
+                    timesRescheduled: 0,
+                },
+            });
 
-        return { success: true, serviceId };
+            return { success: true, serviceId };
+        } catch (err: unknown) {
+            console.log("Error creating service:", err);
+            return {
+                success: false,
+                error:
+                    err instanceof Error
+                        ? err.message
+                        : "Failed to create service.",
+            };
+        }
     },
 });
 

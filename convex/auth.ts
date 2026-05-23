@@ -9,13 +9,16 @@ import { requireActionCtx } from "@convex-dev/better-auth/utils";
 import { emailOTP } from "better-auth/plugins";
 import { resend } from "./email";
 
-const siteUrl = process.env.SITE_URL!;
+const siteUrl = process.env.SITE_URL;
 
 // The component client has methods needed for integrating Convex with Better Auth,
 // as well as helper methods for general use.
 export const authComponent = createClient<DataModel>(components.betterAuth);
 
 export const createAuth = (ctx: GenericCtx<DataModel>) => {
+    if (!siteUrl) {
+        throw new Error("SITE_URL environment variable is not set");
+    }
     return betterAuth({
         trustedOrigins: [
             "wondarapp://",
@@ -68,8 +71,8 @@ export const getCurrentUser = query({
 export async function getAuthUserId(ctx: MutationCtx | QueryCtx | ActionCtx) {
     try {
         const user = await authComponent.getAuthUser(ctx);
-        // Note: Better Auth objects often use .id or ._id depending on the helper
-        return user?._id ?? user?._id ?? null;
+        // console.log("Auth user object:", JSON.stringify(user)); // add this temporarily
+        return user?._id ?? null;
     } catch (err: unknown) {
         console.log("Auth error:", err);
         // This catches the "Unauthenticated" ConvexError from Better Auth

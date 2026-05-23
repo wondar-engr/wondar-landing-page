@@ -4,6 +4,7 @@ import { action } from "../../_generated/server";
 import { v } from "convex/values";
 import { internal } from "../../_generated/api";
 import { getStripe } from "./index";
+import { getOrCreateStripeCustomer } from "./customerHelpers"; // ← new
 
 export const createUpfrontPaymentIntent = action({
     args: { bookingId: v.id("bookings") },
@@ -38,11 +39,18 @@ export const createUpfrontPaymentIntent = action({
             0,
         );
 
+        // ← Get or create Stripe customer for this client
+        const stripeCustomerId = await getOrCreateStripeCustomer(
+            ctx,
+            booking.clientId,
+        );
+
         const stripe = getStripe();
 
         const intent = await stripe.paymentIntents.create({
             amount,
             currency: booking.currency || "usd",
+            customer: stripeCustomerId,
             automatic_payment_methods: { enabled: true },
             transfer_data: {
                 destination: stripeAccount.stripeAccountId,
@@ -114,11 +122,17 @@ export const createFinalPaymentIntent = action({
         const amount = booking.remainingDueAmount; // cents
         if (!amount || amount <= 0) throw new Error("Invalid final amount");
 
+        const stripeCustomerId = await getOrCreateStripeCustomer(
+            ctx,
+            booking.clientId,
+        );
+
         const stripe = getStripe();
 
         const intent = await stripe.paymentIntents.create({
             amount,
             currency: booking.currency || "usd",
+            customer: stripeCustomerId,
             automatic_payment_methods: { enabled: true },
             transfer_data: {
                 destination: stripeAccount.stripeAccountId,

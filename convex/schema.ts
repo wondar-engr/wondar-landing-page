@@ -36,6 +36,8 @@ import {
     BookingDisputeReasonUnion,
     BookingDisputeStatusUnion,
     BookingDisputeResolutionUnion,
+    DisputeOpenedByUnion,
+    DisputeOutcomeUnion,
 } from "./unions";
 
 const schema = defineSchema({
@@ -80,7 +82,13 @@ const schema = defineSchema({
         updatedAt: v.optional(v.number()),
         // LAST KNOWN (For "Active Now" indicators, not necessarily map pins)
         lastSeen: v.optional(v.number()), // Timestamp
-    }).index("by_userId", ["userId"]),
+        tag: v.optional(v.string()), // @handle eg. "lexdgr8est" (no @ stored)
+    })
+        .index("by_userId", ["userId"])
+        .index("by_email", ["email"])
+        .index("by_phoneNumber", ["phoneNumber"])
+        .index("by_role", ["role"])
+        .index("by_tag", ["tag"]),
     // Phone verification codes table
     phoneVerificationCodes: defineTable({
         userId: v.string(), // BetterAuth ID (if we want to link it to a user)
@@ -371,6 +379,35 @@ const schema = defineSchema({
             ),
         ),
         updatedAt: v.number(),
+
+        // Dispute details (Flat, not a separate table, for quick access and sorting)
+        disputeOpenedBy: v.optional(DisputeOpenedByUnion),
+        disputeSubmissions: v.optional(
+            v.object({
+                client: v.optional(
+                    v.object({
+                        text: v.string(),
+                        evidence: v.array(v.string()), // storage URLs max 2
+                        submittedAt: v.number(),
+                    }),
+                ),
+                creative: v.optional(
+                    v.object({
+                        text: v.string(),
+                        evidence: v.array(v.string()),
+                        submittedAt: v.number(),
+                    }),
+                ),
+            }),
+        ),
+        disputeResolution: v.optional(
+            v.object({
+                resolvedBy: v.string(),
+                resolvedAt: v.number(),
+                outcome: DisputeOutcomeUnion,
+                note: v.string(),
+            }),
+        ),
 
         cancelReason: v.optional(v.string()),
         cancelledAt: v.optional(v.number()),
@@ -697,6 +734,84 @@ const schema = defineSchema({
         .index("by_clientId", ["clientId"])
         .index("by_creativeId", ["creativeId"])
         .index("by_status", ["status"]),
+    conversations: defineTable({
+        participantIds: v.array(v.string()), // [clientId, creativeId]
+        bookingId: v.optional(v.id("bookings")),
+        lastMessageAt: v.optional(v.number()),
+        lastMessagePreview: v.optional(v.string()),
+        lastMessageSenderId: v.optional(v.string()),
+        unreadCounts: v.object({
+            // keyed by userId — stored as JSON-safe object
+            // we'll use a map pattern
+            participant1: v.object({ userId: v.string(), count: v.number() }),
+            participant2: v.object({ userId: v.string(), count: v.number() }),
+        }),
+    })
+        .index("by_booking", ["bookingId"])
+        .index("by_participant1", ["unreadCounts.participant1.userId"])
+        .index("by_participant2", ["unreadCounts.participant2.userId"]),
+
+    messages: defineTable({
+        conversationId: v.id("conversations"),
+        senderId: v.string(),
+        type: v.union(
+            v.literal("TEXT"),
+            v.literal("IMAGE"),
+            v.literal("SYSTEM"),
+        ),
+        text: v.optional(v.string()),
+        imageUrl: v.optional(v.string()),
+        replyTo: v.optional(
+            v.object({
+                messageId: v.id("messages"),
+                senderId: v.string(),
+                preview: v.string(), // truncated text or "📷 Photo"
+            }),
+        ),
+        readBy: v.array(v.string()), // userIds who have read it
+        createdAt: v.number(),
+    })
+        .index("by_conversation", ["conversationId"])
+        .index("by_conversation_time", ["conversationId", "createdAt"]),
+
+    posts: defineTable({
+        creativeId: v.string(),
+        caption: v.optional(v.string()),
+        media: v.array(
+            v.object({
+                url: v.string(),
+                type: v.union(v.literal("IMAGE"), v.literal("VIDEO")),
+            }),
+        ),
+        serviceId: v.optional(v.id("services")),
+        tags: v.array(v.string()),
+        visibility: v.union(v.literal("PUBLIC"), v.literal("FOLLOWERS_ONLY")),
+        stats: v.object({
+            views: v.number(),
+            likes: v.number(),
+        }),
+        createdAt: v.number(),
+        updatedAt: v.optional(v.number()),
+    })
+        .index("by_creative", ["creativeId"])
+        .index("by_service", ["serviceId"])
+        .index("by_created", ["createdAt"]),
+
+    postLikes: defineTable({
+        postId: v.id("posts"),
+        userId: v.string(),
+        createdAt: v.number(),
+    })
+        .index("by_postId", ["postId"])
+        .index("by_user", ["userId"])
+        .index("by_user_post", ["userId", "postId"]),
+    typingIndicators: defineTable({
+        conversationId: v.id("conversations"),
+        userId: v.string(),
+        expiresAt: v.number(),
+    })
+        .index("by_conversation", ["conversationId"])
+        .index("by_conversation_user", ["conversationId", "userId"]),
 });
 
 export default schema;

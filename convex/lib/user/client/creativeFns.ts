@@ -1,4 +1,5 @@
-import { query } from "../../../_generated/server";
+import { paginationOptsValidator } from "convex/server";
+import { mutation, query } from "../../../_generated/server";
 import { getAuthUserId } from "../../../auth";
 import {
     calculateDistance,
@@ -126,6 +127,9 @@ export const getNearbyCreatives = query({
             maxPrice,
         },
     ) => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) return null;
+
         const bounds = getBoundingBox(lat, lng, radiusInMiles);
 
         const creativeProfiles = await ctx.db
@@ -136,11 +140,12 @@ export const getNearbyCreatives = query({
                     q.eq(q.field("accountStatus"), "ACTIVE"),
                     q.gte(q.field("workAddress.lat"), bounds.minLat),
                     q.lte(q.field("workAddress.lat"), bounds.maxLat),
+                    q.neq(q.field("userId"), userId),
                 ),
             )
-            .take(limit * 2);
+            .take(limit * 3);
 
-        const creativesWithDistance = await Promise.all(
+        const results = await Promise.all(
             creativeProfiles.map(async creative => {
                 const distance = calculateDistance(
                     lat,
@@ -159,8 +164,6 @@ export const getNearbyCreatives = query({
                     .unique();
 
                 if (!profile) return null;
-
-                let startingPrice: number = 0;
 
                 let services = await ctx.db
                     .query("services")
@@ -181,11 +184,31 @@ export const getNearbyCreatives = query({
                     );
                     if (services.length === 0) return null;
                 }
+                if (services.length === 0) return null;
 
-                startingPrice = Math.min(...services.map(s => s.serviceFee));
+                const startingPrice = Math.min(
+                    ...services.map(s => s.serviceFee),
+                );
 
                 // add filter after startingPrice is calculated:
                 if (maxPrice && startingPrice > maxPrice) return null;
+
+                // ✅ Live rating — same as getPopularCreatives
+                const reviews = await ctx.db
+                    .query("reviews")
+                    .withIndex("by_target", q =>
+                        q.eq("targetId", creative.userId),
+                    )
+                    .collect();
+
+                const rating =
+                    reviews.length > 0
+                        ? reviews.reduce((sum, r) => sum + r.rating, 0) /
+                          reviews.length
+                        : 0;
+
+                // Min rating filter
+                if (minRating && rating < minRating) return null;
 
                 const skills = await Promise.all(
                     creative.skills?.map(async skillId => {
@@ -200,13 +223,12 @@ export const getNearbyCreatives = query({
                     lastName: profile.lastName || "",
                     avatar: profile.avatar,
                     coverImage: creative.coverImage,
-                    businessName: creative.businessName,
-                    skill: skills?.[0] || "",
+                    businessName: creative.businessName || "",
+                    skill: skills[0] || "",
                     distance,
-                    rating: creative.stats?.averageRating || 0,
-                    reviewCount: creative.stats?.totalReviews || 0,
-                    startingPrice:
-                        creative.stats?.lowestPrice || startingPrice || 0,
+                    rating,
+                    reviewCount: reviews.length,
+                    startingPrice,
                     isNew: creative._creationTime > Date.now() - THIRTY_DAYS_MS,
                     isAvailableToday: false,
                     lat: creative.workAddress.lat,
@@ -215,12 +237,10 @@ export const getNearbyCreatives = query({
             }),
         );
 
-        const nearbyCreatives = creativesWithDistance
+        return results
             .filter((c): c is NonNullable<typeof c> => c !== null)
-            .sort((a, b) => a.distance! - b.distance!)
+            .sort((a, b) => a.distance - b.distance)
             .slice(0, limit);
-
-        return nearbyCreatives;
     },
 });
 
@@ -415,5 +435,98 @@ export const getNewCreatives = query({
         return newCreatives
             .filter((c): c is NonNullable<typeof c> => c !== null)
             .slice(0, limit);
+    },
+});
+
+export const getCreativePostsFeed = query({
+    args: {
+        creativeId: v.string(),
+        paginationOpts: paginationOptsValidator,
+    },
+    handler: async (ctx, { creativeId, paginationOpts }) => {
+        const viewerId = await getAuthUserId(ctx);
+
+        const result = await ctx.db
+            .query("posts")
+            .withIndex("by_creative", q => q.eq("creativeId", creativeId))
+            .filter(q => q.eq(q.field("visibility"), "PUBLIC"))
+            .order("desc")
+            .paginate(paginationOpts);
+
+        const enriched = await Promise.all(
+            result.page.map(async post => {
+                // Like count
+                const likes = await ctx.db
+                    .query("postLikes")
+                    .withIndex("by_postId", q => q.eq("postId", post._id))
+                    .collect();
+
+                const likedByMe = viewerId
+                    ? likes.some(l => l.userId === viewerId)
+                    : false;
+
+                // Tagged service
+                let service = null;
+                if (post.serviceId) {
+                    const s = await ctx.db.get(post.serviceId);
+                    if (s) service = { _id: s._id, name: s.name };
+                }
+
+                return {
+                    ...post,
+                    likeCount: likes.length,
+                    likedByMe,
+                    service,
+                };
+            }),
+        );
+
+        return { ...result, page: enriched };
+    },
+});
+
+export const likePost = mutation({
+    args: { postId: v.id("posts") },
+    handler: async (ctx, { postId }) => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) throw new Error("Not authenticated");
+
+        const existing = await ctx.db
+            .query("postLikes")
+            .withIndex("by_user_post", q =>
+                q.eq("userId", userId).eq("postId", postId),
+            )
+            .first();
+
+        if (existing) {
+            await ctx.db.delete(existing._id);
+            // Decrement stats
+            const post = await ctx.db.get(postId);
+            if (post) {
+                await ctx.db.patch(postId, {
+                    stats: {
+                        ...post.stats,
+                        likes: Math.max(0, (post.stats?.likes ?? 1) - 1),
+                    },
+                });
+            }
+            return { liked: false };
+        } else {
+            await ctx.db.insert("postLikes", {
+                postId,
+                userId,
+                createdAt: Date.now(),
+            });
+            const post = await ctx.db.get(postId);
+            if (post) {
+                await ctx.db.patch(postId, {
+                    stats: {
+                        ...post.stats,
+                        likes: (post.stats?.likes ?? 0) + 1,
+                    },
+                });
+            }
+            return { liked: true };
+        }
     },
 });

@@ -165,7 +165,23 @@ export const getTransactions = query({
         const items = hasMore ? transactions.slice(0, limit) : transactions;
 
         return {
-            items,
+            items: await Promise.all(
+                items.map(async tx => {
+                    const service = await ctx.db.get(tx.serviceId);
+                    const client = await getProfileByUserId(ctx, tx.clientId);
+                    const creative = await getProfileByUserId(
+                        ctx,
+                        tx.creativeId,
+                    );
+
+                    return {
+                        ...tx,
+                        serviceName: service?.name ?? "Unknown Service",
+                        clientName: `${client?.firstName ?? "Unknown"} ${client?.lastName ?? "Client"}`,
+                        creativeName: `${creative?.firstName ?? "Unknown"} ${creative?.lastName ?? "Creative"}`,
+                    };
+                }),
+            ),
             hasMore,
             nextCursor: hasMore ? items[items.length - 1]._id : undefined,
         };

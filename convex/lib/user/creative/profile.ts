@@ -4,6 +4,30 @@ import { getAuthUserId } from "../../../auth";
 import { CustomError } from "../../../utils/errorUtils";
 import { v } from "convex/values";
 
+export const getCreativeOnboardingProfile = query({
+    handler: async ctx => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) return null;
+
+        const profile = await ctx.db
+            .query("profiles")
+            .withIndex("by_userId", q => q.eq("userId", userId))
+            .unique();
+
+        if (!profile) return null;
+
+        const creativeProfile = await ctx.db
+            .query("creativeProfiles")
+            .withIndex("by_userId", q => q.eq("userId", userId))
+            .unique();
+
+        return {
+            ...profile,
+            creative: creativeProfile,
+        };
+    },
+});
+
 export const getCreativeProfile = query({
     handler: async ctx => {
         const userId = await getAuthUserId(ctx);
