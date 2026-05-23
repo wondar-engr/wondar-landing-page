@@ -174,6 +174,7 @@ export const updateUserStatus = mutation({
             v.literal("SUSPENDED"),
             v.literal("PENDING"),
             v.literal("REJECTED"),
+            v.literal("UNDER_REVIEW"),
         ),
     },
     handler: async (ctx, { id, accountStatus }) => {
