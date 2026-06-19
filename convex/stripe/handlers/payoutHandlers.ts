@@ -3,23 +3,27 @@ import { ActionCtx } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { syncAccountBalance } from "./accountHandlers";
 
-export async function handlePayoutFailed(
+// ← NEW: called when Stripe auto-creates a payout
+export async function handlePayoutCreatedEvent(
     ctx: ActionCtx,
     payout: Stripe.Payout,
-    stripeAccountId: string | undefined, // ← add
+    stripeAccountId: string | undefined,
 ) {
-    console.log(`[Stripe] Payout failed: ${payout.id}`);
+    console.log(`[Stripe] Payout created: ${payout.id}`);
 
-    await ctx.runMutation(internal.stripe.webhooks.handlePayoutFailed, {
-        stripePayoutId: payout.id,
-        failureCode: payout.failure_code,
-        failureMessage: payout.failure_message,
-    });
-
-    // Also sync balance on failure — balance may have changed
-    if (stripeAccountId) {
-        await syncAccountBalance(ctx, stripeAccountId);
+    if (!stripeAccountId) {
+        console.warn("[Stripe] payout.created fired without account ID");
+        return;
     }
+
+    await ctx.runMutation(internal.stripe.webhooks.handlePayoutCreated, {
+        stripePayoutId: payout.id,
+        stripeAccountId,
+        amount: payout.amount,
+        currency: payout.currency,
+        arrivalDate: payout.arrival_date,
+        status: payout.status,
+    });
 }
 
 export async function handlePayoutPaid(
@@ -36,6 +40,25 @@ export async function handlePayoutPaid(
     });
 
     // Sync real balance after payout
+    if (stripeAccountId) {
+        await syncAccountBalance(ctx, stripeAccountId);
+    }
+}
+
+export async function handlePayoutFailed(
+    ctx: ActionCtx,
+    payout: Stripe.Payout,
+    stripeAccountId: string | undefined, // ← add
+) {
+    console.log(`[Stripe] Payout failed: ${payout.id}`);
+
+    await ctx.runMutation(internal.stripe.webhooks.handlePayoutFailed, {
+        stripePayoutId: payout.id,
+        failureCode: payout.failure_code,
+        failureMessage: payout.failure_message,
+    });
+
+    // Also sync balance on failure — balance may have changed
     if (stripeAccountId) {
         await syncAccountBalance(ctx, stripeAccountId);
     }

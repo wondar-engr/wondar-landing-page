@@ -21,70 +21,6 @@ const getStripe = () => {
 // QUERIES
 // ==========================================
 
-/**
- * Get earnings summary for a creative
- */
-export const getEarningsSummary = query({
-    handler: async ctx => {
-        const userId = await getAuthUserId(ctx);
-        if (!userId) return null;
-        const now = Date.now();
-        const thisMonthStart = new Date();
-        thisMonthStart.setDate(1);
-        thisMonthStart.setHours(0, 0, 0, 0);
-
-        const lastMonthStart = new Date(thisMonthStart);
-        lastMonthStart.setMonth(lastMonthStart.getMonth() - 1);
-
-        const lastMonthEnd = new Date(thisMonthStart);
-        lastMonthEnd.setMilliseconds(-1);
-
-        // Get all completed transactions for this creative
-        const allTransactions = await ctx.db
-            .query("transactions")
-            .withIndex("by_creativeId", q => q.eq("creativeId", userId))
-            .filter(q => q.eq(q.field("status"), "SUCCEEDED"))
-            .collect();
-
-        // Calculate totals
-        let totalEarnings = 0;
-        let thisMonthEarnings = 0;
-        let lastMonthEarnings = 0;
-        let pendingBalance = 0;
-
-        for (const tx of allTransactions) {
-            totalEarnings += tx.creativeEarnings;
-
-            if (tx._creationTime >= thisMonthStart.getTime()) {
-                thisMonthEarnings += tx.creativeEarnings;
-            } else if (
-                tx._creationTime >= lastMonthStart.getTime() &&
-                tx._creationTime <= lastMonthEnd.getTime()
-            ) {
-                lastMonthEarnings += tx.creativeEarnings;
-            }
-
-            // Pending if completed within last 7 days (payout delay)
-            const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
-            if (tx.completedAt && tx.completedAt >= sevenDaysAgo) {
-                pendingBalance += tx.creativeEarnings;
-            }
-        }
-
-        const availableBalance = totalEarnings - pendingBalance;
-
-        return {
-            availableBalance: Math.max(0, availableBalance),
-            pendingBalance,
-            totalEarnings,
-            totalTransactions: allTransactions.length,
-            thisMonthEarnings,
-            lastMonthEarnings,
-            currency: "USD",
-        };
-    },
-});
-
 export const getEarningsSummary2 = query({
     args: {},
     handler: async ctx => {
@@ -146,6 +82,72 @@ export const getEarningsSummary2 = query({
             thisMonthEarnings,
             lastMonthEarnings,
             currency: stripeAccount?.defaultCurrency ?? "USD",
+        };
+    },
+});
+
+/**
+ * Get earnings summary for a creative
+ */
+export const getEarningsSummary = query({
+    handler: async ctx => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) return null;
+
+        const stripeAccount = await ctx.db
+            .query("stripeAccounts")
+            .withIndex("by_userId", q => q.eq("userId", userId))
+            .first();
+
+        const now = Date.now();
+        const thisMonthStart = new Date();
+        thisMonthStart.setDate(1);
+        thisMonthStart.setHours(0, 0, 0, 0);
+
+        const lastMonthStart = new Date(thisMonthStart);
+        lastMonthStart.setMonth(lastMonthStart.getMonth() - 1);
+        const lastMonthEnd = new Date(thisMonthStart);
+        lastMonthEnd.setMilliseconds(-1);
+
+        const recentTx = await ctx.db
+            .query("transactions")
+            .withIndex("by_creativeId", q => q.eq("creativeId", userId))
+            .filter(q => q.eq(q.field("status"), "SUCCEEDED"))
+            .take(500);
+
+        let totalEarnings = 0;
+        let thisMonthEarnings = 0;
+        let lastMonthEarnings = 0;
+
+        for (const tx of recentTx) {
+            totalEarnings += tx.creativeEarnings;
+            if (tx._creationTime >= thisMonthStart.getTime()) {
+                thisMonthEarnings += tx.creativeEarnings;
+            } else if (
+                tx._creationTime >= lastMonthStart.getTime() &&
+                tx._creationTime <= lastMonthEnd.getTime()
+            ) {
+                lastMonthEarnings += tx.creativeEarnings;
+            }
+        }
+
+        const pendingBalance = recentTx
+            .filter(
+                tx =>
+                    tx.completedAt &&
+                    tx.completedAt >= now - 7 * 24 * 60 * 60 * 1000,
+            )
+            .reduce((sum, tx) => sum + tx.creativeEarnings, 0);
+
+        return {
+            // ← Real balance from Stripe via webhook sync
+            availableBalance: stripeAccount?.balance ?? 0,
+            pendingBalance,
+            totalEarnings,
+            totalTransactions: recentTx.length,
+            thisMonthEarnings,
+            lastMonthEarnings,
+            currency: stripeAccount?.defaultCurrency?.toUpperCase() ?? "USD",
         };
     },
 });

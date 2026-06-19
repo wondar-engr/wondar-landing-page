@@ -13,7 +13,11 @@ export {
 } from "./paymentHandlers";
 
 // Payout handlers
-export { handlePayoutPaid, handlePayoutFailed } from "./payoutHandlers";
+export {
+    handlePayoutCreatedEvent,
+    handlePayoutPaid,
+    handlePayoutFailed,
+} from "./payoutHandlers";
 
 // Transfer handlers
 export {

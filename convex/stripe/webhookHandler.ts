@@ -11,8 +11,10 @@ import {
     handlePayoutFailed,
     handleTransferCreated,
     handleTransferReversed,
+    handlePayoutCreatedEvent,
 } from "./handlers";
 import { handleBalanceAvailable } from "./handlers/accountHandlers";
+import { internal } from "@convex/_generated/api";
 
 interface WebhookResult {
     success: boolean;
@@ -101,6 +103,22 @@ export async function handleWebhookEvent(
 ): Promise<WebhookResult> {
     console.log(`[Stripe Webhook] Processing event: ${event.type}`);
 
+    // ── Telegram on every webhook — brief, always-on visibility ──
+    await ctx.scheduler.runAfter(
+        0,
+        internal.lib.appActions.notifications.sendTelegramNotification,
+        {
+            text: [
+                `🔔 Stripe Webhook`,
+                `Event: ${event.type}`,
+                `ID:    ${event.id}`,
+                event.account ? `Acct:  ${event.account}` : null,
+            ]
+                .filter(Boolean)
+                .join("\n"),
+        },
+    );
+
     try {
         switch (event.type) {
             // ==========================================
@@ -144,6 +162,7 @@ export async function handleWebhookEvent(
                 await handlePaymentIntentSucceeded(
                     ctx,
                     event.data.object as Stripe.PaymentIntent,
+                    event.account, // connected account ID
                 );
                 break;
 
@@ -167,6 +186,15 @@ export async function handleWebhookEvent(
             // ==========================================
             // PAYOUT EVENTS
             // ==========================================
+
+            case "payout.created": // ← NEW: catches automatic Stripe payouts
+                await handlePayoutCreatedEvent(
+                    ctx,
+                    event.data.object as Stripe.Payout,
+                    event.account,
+                );
+                break;
+
             case "payout.paid":
                 await handlePayoutPaid(
                     ctx,
@@ -215,6 +243,19 @@ export async function handleWebhookEvent(
     } catch (error) {
         console.error(`[Stripe Webhook] Error handling ${event.type}:`, error);
         // Return 200 to prevent Stripe from retrying
+
+        // Telegram on error too
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendTelegramNotification,
+            {
+                text: [
+                    `🚨 Stripe Webhook ERROR`,
+                    `Event: ${event.type}`,
+                    `Error: ${error instanceof Error ? error.message : String(error)}`,
+                ].join("\n"),
+            },
+        );
         // We log the error and can investigate later
         return {
             success: false,

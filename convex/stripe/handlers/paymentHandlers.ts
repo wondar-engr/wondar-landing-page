@@ -1,10 +1,12 @@
 import Stripe from "stripe";
 import { ActionCtx } from "../../_generated/server";
 import { internal } from "../../_generated/api";
+import { syncAccountBalance } from "./accountHandlers";
 
 export async function handlePaymentIntentSucceeded(
     ctx: ActionCtx,
     paymentIntent: Stripe.PaymentIntent,
+    stripeAccountId?: string, // ← now passed from webhookHandler
 ) {
     console.log(`[Stripe] Payment succeeded: ${paymentIntent.id}`);
 
@@ -21,6 +23,17 @@ export async function handlePaymentIntentSucceeded(
         currency: paymentIntent.currency,
         metadata: paymentIntent.metadata,
     });
+
+    // ← Sync balance after payment so earnings screen updates
+    // transfer_data.destination is the connected account
+    const destination = paymentIntent.transfer_data?.destination;
+    const accountToSync =
+        stripeAccountId ??
+        (typeof destination === "string" ? destination : destination?.id);
+
+    if (accountToSync) {
+        await syncAccountBalance(ctx, accountToSync);
+    }
 }
 
 export async function handlePaymentIntentFailed(

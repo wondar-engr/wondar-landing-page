@@ -456,6 +456,33 @@ export const handlePayoutFailed = internalMutation({
             updatedAt: Date.now(),
         });
 
+        // ← Notify creative their payout failed
+        await sendNotification(ctx, {
+            userId: payout.creativeId,
+            title: "Payout Failed ⚠️",
+            body:
+                args.failureMessage ??
+                "Your payout could not be processed. Please check your bank details.",
+            type: "PAYMENT",
+            meta: { screen: "earnings_payouts" },
+        });
+
+        // ← Telegram too — payout failures need admin visibility
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendTelegramNotification,
+            {
+                text: [
+                    `⚠️ PAYOUT FAILED`,
+                    `Payout ID: ${args.stripePayoutId}`,
+                    `Creative: ${payout.creativeId}`,
+                    `Amount:   $${(payout.amount / 100).toFixed(2)}`,
+                    `Code:     ${args.failureCode ?? "unknown"}`,
+                    `Reason:   ${args.failureMessage ?? "unknown"}`,
+                ].join("\n"),
+            },
+        );
+
         console.log(
             `[Webhook] Payout failed: ${args.stripePayoutId} - ${args.failureCode}`,
         );
