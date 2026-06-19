@@ -191,3 +191,47 @@ export const deleteNotification = mutation({
         await ctx.db.delete(args.notificationId);
     },
 });
+
+// ── Push only — no in-app notification created ────────────────────
+// Use for messages, typing indicators, ephemeral alerts where the
+// user already has a dedicated inbox (chat tab) to read from.
+
+export async function sendPushOnly(
+    ctx: MutationCtx,
+    params: SendNotificationParams,
+) {
+    const { userId, title, body, type, meta } = params;
+
+    // Get user settings
+    const userSettings = await ctx.db
+        .query("userSettings")
+        .withIndex("by_userId", q => q.eq("userId", userId))
+        .first();
+
+    if (!userSettings) return { pushSent: false, reason: "no_settings" };
+
+    // Respect user's notification preferences
+    const triggerKey = mapTypeToTrigger(type);
+    if (triggerKey && !userSettings.notifications.triggers[triggerKey]) {
+        return { pushSent: false, reason: "disabled_by_user" };
+    }
+
+    const activeDevices = userSettings.devices.filter(
+        device => device.isActive && device.pushToken,
+    );
+
+    if (activeDevices.length === 0) {
+        return { pushSent: false, reason: "no_push_tokens" };
+    }
+
+    const pushTokens = activeDevices.map(d => d.pushToken!);
+
+    await ctx.scheduler.runAfter(0, internal.push.sendPush, {
+        tokens: pushTokens,
+        title,
+        body,
+        data: { type, ...meta },
+    });
+
+    return { pushSent: true, deviceCount: pushTokens.length };
+}

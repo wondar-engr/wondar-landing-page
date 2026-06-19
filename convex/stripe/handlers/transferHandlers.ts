@@ -1,10 +1,12 @@
 import Stripe from "stripe";
 import { ActionCtx } from "../../_generated/server";
 import { internal } from "../../_generated/api";
+import { syncAccountBalance } from "./accountHandlers";
 
 export async function handleTransferCreated(
     ctx: ActionCtx,
     transfer: Stripe.Transfer,
+    stripeAccountId: string | undefined, // ← add
 ) {
     console.log(
         `[Stripe] Transfer created: ${transfer.id} - $${transfer.amount / 100}`,
@@ -29,11 +31,17 @@ export async function handleTransferCreated(
         amount: transfer.amount,
         currency: transfer.currency,
     });
+
+    // Also sync balance on failure — balance may have changed
+    if (stripeAccountId) {
+        await syncAccountBalance(ctx, stripeAccountId);
+    }
 }
 
 export async function handleTransferReversed(
     ctx: ActionCtx,
     transfer: Stripe.Transfer,
+    stripeAccountId: string | undefined,
 ) {
     console.log(
         `[Stripe] Transfer reversed: ${transfer.id} - $${transfer.amount_reversed / 100} reversed`,
@@ -43,4 +51,9 @@ export async function handleTransferReversed(
         stripeTransferId: transfer.id,
         amountReversed: transfer.amount_reversed,
     });
+
+    // Also sync balance on failure — balance may have changed
+    if (stripeAccountId) {
+        await syncAccountBalance(ctx, stripeAccountId);
+    }
 }

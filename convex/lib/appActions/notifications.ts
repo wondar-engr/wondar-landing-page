@@ -18,7 +18,10 @@ export const sendTelegramNotification = internalAction({
             });
             return true;
         } catch (err) {
-            console.log("Failed to send Telegram notification:", err);
+            console.log(
+                "[TELEGRAM_ERR]: Failed to send Telegram notification:",
+                err,
+            );
             return false;
         }
     },

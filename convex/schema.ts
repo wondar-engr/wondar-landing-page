@@ -467,6 +467,7 @@ const schema = defineSchema({
         status: StripeAccountStatusUnion,
 
         balance: v.optional(v.number()), // In cents, for quick access without Stripe API call
+        pendingBalance: v.optional(v.number()), // In cents, for quick access without Stripe API call
 
         // Capabilities
         chargesEnabled: v.boolean(),

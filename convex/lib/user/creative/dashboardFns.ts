@@ -1,6 +1,7 @@
 import { Doc } from "@convex/_generated/dataModel";
 import { query } from "@convex/_generated/server";
 import { getAuthUserId } from "@convex/auth";
+import { CreativeEarningCalcType } from "@convex/utils/helpers/types";
 
 function calculateCreativeEarning(
     totalFee: number,
@@ -189,7 +190,7 @@ export const getQuickStats = query({
             .withIndex("by_creative", q => q.eq("creativeId", userId))
             .collect();
 
-        const earning = (b: any) =>
+        const earning = (b: CreativeEarningCalcType) =>
             calculateCreativeEarning(
                 b.proposedTotal,
                 b.platformClientFeeAmount,
@@ -345,10 +346,16 @@ export const getEarningsSnapshot = query({
         const allBookings = await ctx.db
             .query("bookings")
             .withIndex("by_creative", q => q.eq("creativeId", userId))
-            .filter(q => q.eq(q.field("status"), "COMPLETED"))
+            .filter(q =>
+                q.or(
+                    q.eq(q.field("status"), "COMPLETED"),
+                    q.eq(q.field("status"), "PAID"),
+                    q.eq(q.field("status"), "DISPUTE"),
+                ),
+            )
             .collect();
 
-        const earning = (b: any) =>
+        const earning = (b: CreativeEarningCalcType) =>
             calculateCreativeEarning(
                 b.proposedTotal,
                 b.platformClientFeeAmount,

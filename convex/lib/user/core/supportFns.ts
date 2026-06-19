@@ -1,6 +1,7 @@
 import { query, mutation } from "../../../_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex/auth";
+import { ServicesType } from "@convex/utils/helpers/types";
 
 // Get users supporting me (my supporters)
 export const getMySupporters = query({
@@ -149,7 +150,7 @@ export const getUserProfile = query({
             .first();
 
         // Get their services if creative
-        let services: any[] = [];
+        let services: ServicesType[] = [];
         if (creativeProfile) {
             services = await ctx.db
                 .query("services")

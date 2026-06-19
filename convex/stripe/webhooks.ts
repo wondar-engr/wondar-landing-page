@@ -628,3 +628,32 @@ export const handleTransferReversed = internalMutation({
         return { ok: true };
     },
 });
+
+export const updateAccountBalance = internalMutation({
+    args: {
+        stripeAccountId: v.string(),
+        balance: v.number(),
+        pendingBalance: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const account = await ctx.db
+            .query("stripeAccounts")
+            .withIndex("by_stripeAccountId", q =>
+                q.eq("stripeAccountId", args.stripeAccountId),
+            )
+            .unique();
+
+        if (!account) {
+            console.log(
+                `[Webhook] Account not found for balance update: ${args.stripeAccountId}`,
+            );
+            return;
+        }
+
+        await ctx.db.patch(account._id, {
+            balance: args.balance,
+            pendingBalance: args.pendingBalance,
+            updatedAt: Date.now(),
+        });
+    },
+});

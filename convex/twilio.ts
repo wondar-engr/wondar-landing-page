@@ -26,8 +26,6 @@ export const sendPhoneOtp = action({
                     channel: "sms",
                 });
 
-            console.log("Twilio verification sent:", verification.status);
-
             return {
                 success: true,
                 status: verification.status,
@@ -55,8 +53,6 @@ export const verifyPhoneOtp = action({
                     to: phoneNumber,
                     code: code,
                 });
-
-            console.log("Twilio verification check:", verificationCheck.status);
 
             return {
                 success: verificationCheck.status === "approved",

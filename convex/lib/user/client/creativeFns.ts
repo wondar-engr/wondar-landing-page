@@ -530,3 +530,40 @@ export const likePost = mutation({
         }
     },
 });
+
+export const getCreativeReviews = query({
+    args: {
+        paginationOpts: paginationOptsValidator,
+        creativeUserId: v.string(),
+    },
+    handler: async (ctx, { paginationOpts, creativeUserId }) => {
+        const result = await ctx.db
+            .query("reviews")
+            .withIndex("by_target", q => q.eq("targetId", creativeUserId)) // ← was by_creativeId
+            .order("desc")
+            .paginate(paginationOpts);
+
+        const enriched = await Promise.all(
+            result.page.map(async review => {
+                const clientProfile = await ctx.db
+                    .query("profiles")
+                    .withIndex(
+                        "by_userId",
+                        q => q.eq("userId", review.authorId), // ← was clientId
+                    )
+                    .first();
+
+                return {
+                    ...review,
+                    clientName: clientProfile
+                        ? `${clientProfile.firstName ?? ""} ${clientProfile.lastName ?? ""}`.trim()
+                        : "Anonymous",
+                    clientAvatar: clientProfile?.avatar ?? null,
+                    // no serviceId on review — omit serviceName
+                };
+            }),
+        );
+
+        return { ...result, page: enriched };
+    },
+});

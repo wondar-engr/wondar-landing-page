@@ -72,11 +72,11 @@ export const testSendNotification = internalMutation({
                 title: testTitle,
                 body: testBody,
             };
-        } catch (error: any) {
+        } catch (error: unknown) {
             return {
                 success: false,
-                error: error.message,
-                stack: error.stack,
+                error: (error as Error).message,
+                stack: (error as Error).stack,
             };
         }
     },
@@ -132,12 +132,12 @@ export const testDirectFetch = internalAction({
                 status: response.status,
                 result,
             };
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Direct fetch error:", error);
             return {
                 success: false,
-                error: error.message,
-                stack: error.stack,
+                error: (error as Error).message,
+                stack: (error as Error).stack,
             };
         }
     },
@@ -169,94 +169,14 @@ export const testExpoSDK = internalAction({
             return {
                 success: true,
             };
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Expo SDK error:", error);
             return {
                 success: false,
-                error: error.message,
-                code: error.code,
-                stack: error.stack,
+                error: (error as Error).message,
+                stack: (error as Error).stack,
             };
         }
-    },
-});
-
-// ==========================================
-// TEST 5: Full flow - get user, get device, send notification
-// ==========================================
-export const testFullFlow = internalAction({
-    args: {
-        userId: v.string(),
-    },
-    handler: async (ctx, { userId }) => {
-        const results: any = {
-            steps: [],
-        };
-
-        // Step 1: Check user devices
-        console.log("Step 1: Checking user devices...");
-        const userInfo = await ctx.runQuery(
-            internal.tests.notifications.checkUserDevices,
-            {
-                userId,
-            },
-        );
-        results.steps.push({ step: "checkUserDevices", result: userInfo });
-
-        if (!userInfo.userExists) {
-            return { ...results, error: "User not found" };
-        }
-
-        if (userInfo.devicesCount === 0) {
-            return { ...results, error: "User has no registered devices" };
-        }
-
-        const pushToken = userInfo.devices
-            ? userInfo.devices[0]?.pushToken
-            : null;
-        if (!pushToken) {
-            return { ...results, error: "No push token found on device" };
-        }
-
-        results.pushToken = pushToken;
-
-        // Step 2: Test direct fetch
-        console.log("Step 2: Testing direct fetch...");
-        const directResult = await ctx.runAction(
-            internal.tests.notifications.testDirectFetch,
-            {
-                pushToken,
-                title: "🧪 Full Flow Test (Direct)",
-                body: `Test at ${new Date().toLocaleTimeString()}`,
-            },
-        );
-        results.steps.push({ step: "directFetch", result: directResult });
-
-        // Step 3: Test Expo SDK (to see the error)
-        console.log("Step 3: Testing Expo SDK...");
-        const sdkResult = await ctx.runAction(
-            internal.tests.notifications.testExpoSDK,
-            {
-                pushToken,
-                title: "🧪 Full Flow Test (SDK)",
-                body: `Test at ${new Date().toLocaleTimeString()}`,
-            },
-        );
-        results.steps.push({ step: "expoSDK", result: sdkResult });
-
-        // Step 4: Test sendNotification utility
-        console.log("Step 4: Testing sendNotification utility...");
-        const utilResult = await ctx.runMutation(
-            internal.tests.notifications.testSendNotification,
-            {
-                userId,
-                title: "🧪 Full Flow Test (Utility)",
-                body: `Test at ${new Date().toLocaleTimeString()}`,
-            },
-        );
-        results.steps.push({ step: "sendNotification", result: utilResult });
-
-        return results;
     },
 });
 
@@ -282,10 +202,10 @@ export const testDBNotification = internalMutation({
                 success: true,
                 notificationId,
             };
-        } catch (error: any) {
+        } catch (error: unknown) {
             return {
                 success: false,
-                error: error.message,
+                error: (error as Error).message,
             };
         }
     },

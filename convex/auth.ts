@@ -71,7 +71,6 @@ export const getCurrentUser = query({
 export async function getAuthUserId(ctx: MutationCtx | QueryCtx | ActionCtx) {
     try {
         const user = await authComponent.getAuthUser(ctx);
-        // console.log("Auth user object:", JSON.stringify(user)); // add this temporarily
         return user?._id ?? null;
     } catch (err: unknown) {
         console.log("Auth error:", err);

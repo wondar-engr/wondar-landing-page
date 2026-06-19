@@ -89,3 +89,10 @@ export const getAllStripeAccountIds = internalQuery({
         return await ctx.db.query("stripeAccounts").collect();
     },
 });
+
+export const getAllStripeAccounts = internalQuery({
+    args: {},
+    handler: async ctx => {
+        return await ctx.db.query("stripeAccounts").collect();
+    },
+});

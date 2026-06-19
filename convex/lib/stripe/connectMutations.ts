@@ -96,3 +96,66 @@ export const deleteStripeAccount = internalMutation({
         await ctx.db.delete(args.id);
     },
 });
+
+export const createPayoutRecord = internalMutation({
+    args: {
+        creativeId: v.string(),
+        stripeAccountId: v.string(),
+        stripePayoutId: v.string(),
+        amount: v.number(),
+        currency: v.string(),
+        arrivalDate: v.number(),
+        status: v.union(
+            v.literal("PENDING"),
+            v.literal("IN_TRANSIT"),
+            v.literal("PAID"),
+            v.literal("FAILED"),
+            v.literal("CANCELED"),
+        ),
+        type: v.union(v.literal("AUTOMATIC"), v.literal("MANUAL")),
+    },
+    handler: async (ctx, args) => {
+        const existing = await ctx.db
+            .query("payouts")
+            .withIndex("by_stripePayoutId", q =>
+                q.eq("stripePayoutId", args.stripePayoutId),
+            )
+            .first();
+
+        if (existing) return existing._id;
+
+        return await ctx.db.insert("payouts", {
+            ...args,
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+export const updateAccountBalance = internalMutation({
+    args: {
+        stripeAccountId: v.string(),
+        balance: v.number(),
+        pendingBalance: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const account = await ctx.db
+            .query("stripeAccounts")
+            .withIndex("by_stripeAccountId", q =>
+                q.eq("stripeAccountId", args.stripeAccountId),
+            )
+            .unique();
+
+        if (!account) {
+            console.log(
+                `[Webhook] Account not found for balance update: ${args.stripeAccountId}`,
+            );
+            return;
+        }
+
+        await ctx.db.patch(account._id, {
+            balance: args.balance,
+            pendingBalance: args.pendingBalance,
+            updatedAt: Date.now(),
+        });
+    },
+});

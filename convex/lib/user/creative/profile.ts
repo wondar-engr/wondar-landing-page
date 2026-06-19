@@ -232,12 +232,6 @@ export const handleCompleteOnboarding = mutation({
             await ctx.db.patch(creativeProfile._id, {
                 onboardingComplete: true,
             });
-
-            console.log(
-                "Creative profile skills on completion:",
-                creativeProfile.skills,
-            );
-
             // Fetch all category names
             const categories = await Promise.all(
                 creativeProfile.skills!.map(id => ctx.db.get(id)),

@@ -5,6 +5,7 @@ import { action } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { getStripe } from "./index";
 import { StripeError } from "../../utils/helpers/types";
+import { getAuthUserId } from "@convex/auth";
 
 const REFRESH_URL = `${process.env.APP_URL}/stripe/connect/refresh`;
 const SUCCESS_URL = `${process.env.APP_URL}/stripe/connect/success`;
@@ -137,8 +138,6 @@ export const createOnboardingLink = action({
         if (!account?.stripeAccountId) {
             return null;
         }
-
-        console.log("Creating onboarding link for account:", account);
 
         const accountLink = await stripe.accountLinks.create({
             account: account.stripeAccountId,
@@ -351,5 +350,106 @@ export const deleteConnectAccount = action({
         );
 
         return { success: true, message: "Account deleted" };
+    },
+});
+
+export const requestPayout = action({
+    args: {
+        amount: v.number(),
+        currency: v.string(),
+    },
+    handler: async (
+        ctx,
+        { amount, currency },
+    ): Promise<{ success: boolean; payoutId: string }> => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) throw new Error("Unauthenticated");
+
+        const stripeAccount = await ctx.runQuery(
+            internal.lib.stripe.connectQueries.getStripeAccountByUserId,
+            { userId },
+        );
+
+        if (!stripeAccount?.stripeAccountId) {
+            throw new Error("No Stripe account connected");
+        }
+        if (!stripeAccount.payoutsEnabled) {
+            throw new Error("Payouts are not enabled on your account yet");
+        }
+        if (amount <= 0) {
+            throw new Error("Invalid payout amount");
+        }
+
+        const stripe = getStripe();
+
+        // Create payout on the connected account
+        const payout = await stripe.payouts.create(
+            {
+                amount,
+                currency,
+                metadata: { userId, platform: "wondar" },
+            },
+            { stripeAccount: stripeAccount.stripeAccountId },
+        );
+
+        // Save payout record to DB
+        await ctx.runMutation(
+            internal.lib.stripe.connectMutations.createPayoutRecord,
+            {
+                creativeId: userId,
+                stripeAccountId: stripeAccount.stripeAccountId,
+                stripePayoutId: payout.id,
+                amount: payout.amount,
+                currency: payout.currency.toUpperCase(),
+                arrivalDate: payout.arrival_date,
+                status: "PENDING",
+                type: "MANUAL",
+            },
+        );
+
+        return { success: true, payoutId: payout.id };
+    },
+});
+
+export const syncMyBalance = action({
+    args: {},
+    handler: async (ctx): Promise<{ available: number; pending: number }> => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) throw new Error("Unauthenticated");
+
+        const stripeAccount = await ctx.runQuery(
+            internal.lib.stripe.connectQueries.getStripeAccountByUserId,
+            { userId },
+        );
+
+        if (!stripeAccount?.stripeAccountId) {
+            throw new Error("No Stripe account connected");
+        }
+
+        const stripe = getStripe();
+
+        const balance = await stripe.balance.retrieve(
+            {},
+            {
+                stripeAccount: stripeAccount.stripeAccountId,
+            },
+        );
+
+        const available = balance.available.reduce(
+            (sum, b) => sum + b.amount,
+            0,
+        );
+        const pending = balance.pending.reduce((sum, b) => sum + b.amount, 0);
+
+        await ctx.runMutation(
+            internal.lib.stripe.connectMutations.updateAccountBalance,
+            {
+                stripeAccountId: stripeAccount.stripeAccountId,
+                balance: available,
+                pendingBalance: pending,
+            },
+        );
+
+        return { available, pending };
     },
 });

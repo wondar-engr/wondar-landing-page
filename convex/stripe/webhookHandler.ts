@@ -12,6 +12,7 @@ import {
     handleTransferCreated,
     handleTransferReversed,
 } from "./handlers";
+import { handleBalanceAvailable } from "./handlers/accountHandlers";
 
 interface WebhookResult {
     success: boolean;
@@ -127,6 +128,14 @@ export async function handleWebhookEvent(
                     event.account,
                 );
                 break;
+            // Add to the switch statement
+            case "balance.available":
+                await handleBalanceAvailable(
+                    ctx,
+                    event.data.object as Stripe.Balance,
+                    event.account, // connected account ID
+                );
+                break;
 
             // ==========================================
             // PAYMENT EVENTS
@@ -159,13 +168,18 @@ export async function handleWebhookEvent(
             // PAYOUT EVENTS
             // ==========================================
             case "payout.paid":
-                await handlePayoutPaid(ctx, event.data.object as Stripe.Payout);
+                await handlePayoutPaid(
+                    ctx,
+                    event.data.object as Stripe.Payout,
+                    event.account,
+                );
                 break;
 
             case "payout.failed":
                 await handlePayoutFailed(
                     ctx,
                     event.data.object as Stripe.Payout,
+                    event.account,
                 );
                 break;
 
@@ -176,6 +190,7 @@ export async function handleWebhookEvent(
                 await handleTransferCreated(
                     ctx,
                     event.data.object as Stripe.Transfer,
+                    event.account,
                 );
                 break;
 
@@ -183,6 +198,7 @@ export async function handleWebhookEvent(
                 await handleTransferReversed(
                     ctx,
                     event.data.object as Stripe.Transfer,
+                    event.account,
                 );
                 break;
 

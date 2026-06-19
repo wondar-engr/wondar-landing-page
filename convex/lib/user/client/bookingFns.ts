@@ -17,7 +17,7 @@ async function generateOrderNo(ctx: QueryCtx): Promise<string> {
 async function getConfigNumber(ctx: QueryCtx, key: string, fallback: number) {
     const row = await ctx.db
         .query("systemConfig")
-        .withIndex("by_key", (q: any) => q.eq("key", key))
+        .withIndex("by_key", q => q.eq("key", key))
         .unique();
 
     const n = Number(row?.value);
@@ -82,7 +82,7 @@ export const createBooking = mutation({
         );
         const currencyCfg = await ctx.db
             .query("systemConfig")
-            .withIndex("by_key", (q: any) => q.eq("key", "default_currency"))
+            .withIndex("by_key", q => q.eq("key", "default_currency"))
             .unique();
 
         const currency = String(currencyCfg?.value ?? "usd").toLowerCase();
@@ -387,15 +387,10 @@ export const getAvailableTimeSlots = query({
 
         const date = new Date(dateBooked);
 
-        console.log("Day of week:", dayOfWeek);
-        console.log("Date booked:", date);
-
         // Use the dayOfWeek sent from frontend (already in client's timezone)
         const dayAvailability = service.availability?.find(
             a => a.day === dayOfWeek && a.selected,
         );
-
-        console.log("Day availability:", dayAvailability);
 
         if (!dayAvailability) return [];
 

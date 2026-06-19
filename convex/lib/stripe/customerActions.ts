@@ -25,7 +25,9 @@ export const listPaymentMethods = action({
     args: {},
     handler: async (ctx): Promise<ListPaymentMethodsResult> => {
         const userId = await getAuthUserId(ctx);
-        if (!userId) throw new Error("Unauthenticated");
+        if (!userId) {
+            return { paymentMethods: [], defaultPaymentMethodId: null };
+        }
 
         const customer = await ctx.runQuery(
             internal.lib.stripe.customerQueries.getCustomerByUserId,

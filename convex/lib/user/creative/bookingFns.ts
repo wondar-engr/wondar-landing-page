@@ -242,15 +242,29 @@ export const startService = mutation({
         if (booking.creativeId !== creativeId)
             throw new Error("Not authorized");
 
-        console.log("Booking:", booking);
         if (booking.status !== "PAID")
             throw new Error("Cannot start this booking");
 
-        // DEV: time window check removed for testing — restore before production
         if (booking.paymentPhase !== "UPFRONT_PAID") {
             throw new Error(
                 "Upfront payment must be completed before starting",
             );
+        }
+
+        // Time window check — creative can only start within the booking window
+        const now = Date.now();
+        const bookingStartMs =
+            booking.dateBooked + booking.startTime * 60 * 1000;
+        const bookingEndMs = booking.dateBooked + booking.endTime * 60 * 1000;
+        const oneHourBefore = bookingStartMs - 60 * 60 * 1000;
+
+        if (now < oneHourBefore) {
+            throw new Error(
+                "You can only start the service within 1 hour of the scheduled time",
+            );
+        }
+        if (now > bookingEndMs) {
+            throw new Error("The booking window has already passed");
         }
 
         await ctx.db.patch(bookingId, {

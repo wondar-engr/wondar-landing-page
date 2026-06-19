@@ -185,8 +185,6 @@ export const checkPhoneNumberExists = mutation({
     },
     handler: async (ctx, { phoneNumber }) => {
         try {
-            console.log("Checking phone number existence:", phoneNumber);
-
             const profile = await ctx.db
                 .query("profiles")
                 .filter(q => q.eq(q.field("phoneNumber"), phoneNumber))

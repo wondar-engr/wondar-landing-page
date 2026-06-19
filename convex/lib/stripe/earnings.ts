@@ -3,6 +3,8 @@ import { query, action } from "../../_generated/server";
 import Stripe from "stripe";
 import { getAuthUserId } from "../../../convex/auth";
 import { getProfileByUserId } from "@convex/utils/helpers/profile";
+import { paginationOptsValidator } from "convex/server";
+import { TransactionStatusUnion } from "@convex/unions";
 
 // Initialize Stripe
 const getStripe = () => {
@@ -71,12 +73,6 @@ export const getEarningsSummary = query({
 
         const availableBalance = totalEarnings - pendingBalance;
 
-        console.log(`Available Balance: ${availableBalance}`);
-        console.log(`Pending Balance: ${pendingBalance}`);
-        console.log(`Total Earnings: ${totalEarnings}`);
-        console.log(`This Month Earnings: ${thisMonthEarnings}`);
-        console.log(`Last Month Earnings: ${lastMonthEarnings}`);
-
         return {
             availableBalance: Math.max(0, availableBalance),
             pendingBalance,
@@ -85,6 +81,71 @@ export const getEarningsSummary = query({
             thisMonthEarnings,
             lastMonthEarnings,
             currency: "USD",
+        };
+    },
+});
+
+export const getEarningsSummary2 = query({
+    args: {},
+    handler: async ctx => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) throw new Error("Unauthenticated");
+
+        // ── Real balance from Stripe (via webhook sync) ───────────
+        const stripeAccount = await ctx.db
+            .query("stripeAccounts")
+            .withIndex("by_userId", q => q.eq("userId", userId))
+            .first();
+
+        // ── Transaction totals (capped) ───────────────────────────
+        const now = Date.now();
+        const thisMonthStart = new Date();
+        thisMonthStart.setDate(1);
+        thisMonthStart.setHours(0, 0, 0, 0);
+
+        const lastMonthStart = new Date(thisMonthStart);
+        lastMonthStart.setMonth(lastMonthStart.getMonth() - 1);
+        const lastMonthEnd = new Date(thisMonthStart);
+        lastMonthEnd.setMilliseconds(-1);
+
+        const recentTx = await ctx.db
+            .query("transactions")
+            .withIndex("by_creativeId", q => q.eq("creativeId", userId))
+            .filter(q => q.eq(q.field("status"), "SUCCEEDED"))
+            .take(500);
+
+        let totalEarnings = 0;
+        let thisMonthEarnings = 0;
+        let lastMonthEarnings = 0;
+
+        for (const tx of recentTx) {
+            totalEarnings += tx.creativeEarnings;
+            if (tx._creationTime >= thisMonthStart.getTime()) {
+                thisMonthEarnings += tx.creativeEarnings;
+            } else if (
+                tx._creationTime >= lastMonthStart.getTime() &&
+                tx._creationTime <= lastMonthEnd.getTime()
+            ) {
+                lastMonthEarnings += tx.creativeEarnings;
+            }
+        }
+
+        return {
+            // ← Real balance from Stripe, not calculated
+            availableBalance: stripeAccount?.balance ?? 0,
+            // Pending = stripe knows, we estimate from recent tx
+            pendingBalance: recentTx
+                .filter(
+                    tx =>
+                        tx.completedAt &&
+                        tx.completedAt >= now - 7 * 24 * 60 * 60 * 1000,
+                )
+                .reduce((sum, tx) => sum + tx.creativeEarnings, 0),
+            totalEarnings,
+            totalTransactions: recentTx.length,
+            thisMonthEarnings,
+            lastMonthEarnings,
+            currency: stripeAccount?.defaultCurrency ?? "USD",
         };
     },
 });
@@ -188,6 +249,107 @@ export const getTransactions = query({
     },
 });
 
+// ── Creative transactions ─────────────────────────────────────────
+export const getCreativeTransactionsPaginated = query({
+    args: {
+        paginationOpts: paginationOptsValidator,
+        status: v.optional(TransactionStatusUnion),
+    },
+    handler: async (ctx, { paginationOpts, status }) => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) throw new Error("Unauthenticated");
+
+        const result = await ctx.db
+            .query("transactions")
+            .withIndex("by_creativeId", q => q.eq("creativeId", userId))
+            .order("desc")
+            .paginate(paginationOpts);
+
+        const filtered = status
+            ? result.page.filter(tx => tx.status === status)
+            : result.page;
+
+        // ── Batch lookups — collect unique IDs first ──────────────
+        const serviceIds = [...new Set(filtered.map(tx => tx.serviceId))];
+        const clientIds = [...new Set(filtered.map(tx => tx.clientId))];
+
+        const [services, clientProfiles] = await Promise.all([
+            Promise.all(serviceIds.map(id => ctx.db.get(id))),
+            Promise.all(
+                clientIds.map(id =>
+                    ctx.db
+                        .query("profiles")
+                        .withIndex("by_userId", q => q.eq("userId", id))
+                        .first(),
+                ),
+            ),
+        ]);
+
+        // Build lookup maps
+        const serviceMap = Object.fromEntries(
+            serviceIds.map((id, i) => [id, services[i]]),
+        );
+        const clientMap = Object.fromEntries(
+            clientIds.map((id, i) => [id, clientProfiles[i]]),
+        );
+
+        const enriched = filtered.map(tx => {
+            const client = clientMap[tx.clientId];
+            return {
+                ...tx,
+                serviceName:
+                    serviceMap[tx.serviceId]?.name ?? "Unknown Service",
+                clientName: client
+                    ? `${client.firstName ?? ""} ${client.lastName ?? ""}`.trim()
+                    : "Unknown Client",
+                clientAvatar: client?.avatar ?? null,
+            };
+        });
+
+        return { ...result, page: enriched };
+    },
+});
+
+// ── Client transactions ───────────────────────────────────────────
+export const getClientTransactionsPaginated = query({
+    args: {
+        paginationOpts: paginationOptsValidator,
+        status: v.optional(TransactionStatusUnion),
+    },
+    handler: async (ctx, { paginationOpts, status }) => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) throw new Error("Unauthenticated");
+
+        const result = await ctx.db
+            .query("transactions")
+            .withIndex("by_clientId", q => q.eq("clientId", userId))
+            .order("desc")
+            .paginate(paginationOpts);
+
+        const filtered = status
+            ? result.page.filter(tx => tx.status === status)
+            : result.page;
+
+        const enriched = await Promise.all(
+            filtered.map(async tx => {
+                const service = await ctx.db.get(tx.serviceId);
+                const creative = await getProfileByUserId(ctx, tx.creativeId);
+
+                return {
+                    ...tx,
+                    serviceName: service?.name ?? "Unknown Service",
+                    creativeName: creative
+                        ? `${creative.firstName ?? ""} ${creative.lastName ?? ""}`.trim()
+                        : "Unknown Creative",
+                    creativeAvatar: creative?.avatar ?? null,
+                };
+            }),
+        );
+
+        return { ...result, page: enriched };
+    },
+});
+
 /**
  * Get transaction by ID
  */
@@ -198,25 +360,18 @@ export const getTransactionById = query({
     },
 });
 
-/**
- * Get payouts for a creative
- */
+// ── Payouts — paginated ───────────────────────────────────────────
 export const getPayouts = query({
-    args: {
-        limit: v.optional(v.number()),
-    },
-    handler: async (ctx, args) => {
+    args: { paginationOpts: paginationOptsValidator },
+    handler: async (ctx, { paginationOpts }) => {
         const userId = await getAuthUserId(ctx);
-        if (!userId) return null;
-        const limit = args.limit ?? 20;
+        if (!userId) throw new Error("Unauthenticated");
 
-        const payouts = await ctx.db
+        return await ctx.db
             .query("payouts")
             .withIndex("by_creativeId", q => q.eq("creativeId", userId))
             .order("desc")
-            .take(limit);
-
-        return payouts;
+            .paginate(paginationOpts);
     },
 });
 

@@ -2,9 +2,8 @@ import { mutation, query } from "../../../_generated/server";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { getAuthUserId } from "../../../auth";
-import { sendNotification } from "../../notifications";
+import { sendPushOnly } from "../../notifications";
 
-// ── Get or create conversation ────────────────────────────────────
 export const getOrCreateConversation = mutation({
     args: {
         otherUserId: v.string(),
@@ -14,7 +13,30 @@ export const getOrCreateConversation = mutation({
         const userId = await getAuthUserId(ctx);
         if (!userId) throw new Error("Not authenticated");
 
-        // Check if conversation already exists between these two
+        // ── Client ↔ Creative (booking context) ──────────────────
+        // bookingId is the ONLY key — never touch userId pair lookup
+        if (bookingId) {
+            const existing = await ctx.db
+                .query("conversations")
+                .withIndex("by_booking", q => q.eq("bookingId", bookingId))
+                .first();
+
+            if (existing) return { conversationId: existing._id };
+
+            const conversationId = await ctx.db.insert("conversations", {
+                participantIds: [userId, otherUserId],
+                bookingId,
+                unreadCounts: {
+                    participant1: { userId, count: 0 },
+                    participant2: { userId: otherUserId, count: 0 },
+                },
+            });
+
+            return { conversationId };
+        }
+
+        // ── Creative ↔ Creative (collaboration, no bookingId) ─────
+        // userId pair lookup — but ONLY on conversations with no bookingId
         const asP1 = await ctx.db
             .query("conversations")
             .withIndex("by_participant1", q =>
@@ -23,12 +45,14 @@ export const getOrCreateConversation = mutation({
             .collect();
 
         const existing = asP1.find(
-            c => c.unreadCounts.participant2.userId === otherUserId,
+            c =>
+                c.unreadCounts.participant2.userId === otherUserId &&
+                c.bookingId === undefined,
         );
 
         if (existing) return { conversationId: existing._id };
 
-        // Check the other direction
+        // Check reverse direction
         const asP2 = await ctx.db
             .query("conversations")
             .withIndex("by_participant2", q =>
@@ -37,15 +61,16 @@ export const getOrCreateConversation = mutation({
             .collect();
 
         const existingReverse = asP2.find(
-            c => c.unreadCounts.participant1.userId === otherUserId,
+            c =>
+                c.unreadCounts.participant1.userId === otherUserId &&
+                c.bookingId === undefined,
         );
 
         if (existingReverse) return { conversationId: existingReverse._id };
 
-        // Create new
+        // Create new creative↔creative conversation
         const conversationId = await ctx.db.insert("conversations", {
             participantIds: [userId, otherUserId],
-            bookingId,
             unreadCounts: {
                 participant1: { userId, count: 0 },
                 participant2: { userId: otherUserId, count: 0 },
@@ -241,7 +266,7 @@ export const sendMessage = mutation({
             ? `${senderProfile.firstName ?? ""} ${senderProfile.lastName ?? ""}`.trim()
             : "Someone";
 
-        await sendNotification(ctx, {
+        await sendPushOnly(ctx, {
             userId: otherUserId,
             title: senderName,
             body: preview,

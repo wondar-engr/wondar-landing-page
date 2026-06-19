@@ -35,8 +35,6 @@ export const sendTwilioOtp = action({
                     channel: "sms",
                 });
 
-            console.log("Twilio verification sent:", verification.status);
-
             const res = await ctx.runMutation(
                 internal.lib.internalMuts.auth.createPhoneVerificationCodeEntry,
                 {
@@ -88,8 +86,6 @@ export const verifyTwilioOtp = action({
                     to: phoneNumber,
                     code: code,
                 });
-
-            console.log("Twilio verification check:", verificationCheck.status);
 
             const res = await ctx.runMutation(
                 internal.lib.internalMuts.auth.updatePhoneVerificationCodeEntry,

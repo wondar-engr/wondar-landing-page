@@ -71,7 +71,7 @@ export const createService = mutation({
 
             return { success: true, serviceId };
         } catch (err: unknown) {
-            console.log("Error creating service:", err);
+            console.log("[SERVICE_CREATION_ERR]: Error creating service:", err);
             return {
                 success: false,
                 error:

@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { ActionCtx } from "../../_generated/server";
 import { internal } from "../../_generated/api";
+import { getStripe } from "@convex/lib/stripe";
 
 export async function handleAccountUpdated(
     ctx: ActionCtx,
@@ -49,4 +50,66 @@ export async function handleAccountDeauthorized(
             },
         );
     }
+}
+
+export async function handleBalanceAvailable(
+    ctx: ActionCtx,
+    balance: Stripe.Balance,
+    stripeAccountId: string | undefined,
+) {
+    if (!stripeAccountId) {
+        console.log(
+            "[Stripe] balance.available fired without account ID — skipping",
+        );
+        return;
+    }
+
+    // Available balance in cents (sum across currencies, usually just one)
+    const availableBalance = balance.available.reduce(
+        (sum, b) => sum + b.amount,
+        0,
+    );
+    const pendingBalance = balance.pending.reduce(
+        (sum, b) => sum + b.amount,
+        0,
+    );
+
+    await ctx.runMutation(internal.stripe.webhooks.updateAccountBalance, {
+        stripeAccountId,
+        balance: availableBalance,
+        pendingBalance,
+    });
+
+    console.log(
+        `[Stripe] Balance updated for ${stripeAccountId}: available=${availableBalance} pending=${pendingBalance}`,
+    );
+}
+
+// Also call this on payout.paid and transfer.created
+// so balance stays fresh even if balance.available fires late
+export async function syncAccountBalance(
+    ctx: ActionCtx,
+    stripeAccountId: string,
+) {
+    const stripe = getStripe();
+
+    const balance = await stripe.balance.retrieve(
+        {},
+        { stripeAccount: stripeAccountId },
+    );
+
+    const availableBalance = balance.available.reduce(
+        (sum, b) => sum + b.amount,
+        0,
+    );
+    const pendingBalance = balance.pending.reduce(
+        (sum, b) => sum + b.amount,
+        0,
+    );
+
+    await ctx.runMutation(internal.stripe.webhooks.updateAccountBalance, {
+        stripeAccountId,
+        balance: availableBalance,
+        pendingBalance,
+    });
 }
