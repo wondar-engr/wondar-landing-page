@@ -29,6 +29,7 @@ import type * as lib_internalQueries_profiles from "../lib/internalQueries/profi
 import type * as lib_internalQueries_settings from "../lib/internalQueries/settings.js";
 import type * as lib_internalQueries_stripe from "../lib/internalQueries/stripe.js";
 import type * as lib_notifications_index from "../lib/notifications/index.js";
+import type * as lib_public_publicFns from "../lib/public/publicFns.js";
 import type * as lib_stripe_backfill from "../lib/stripe/backfill.js";
 import type * as lib_stripe_checkout from "../lib/stripe/checkout.js";
 import type * as lib_stripe_connect from "../lib/stripe/connect.js";
@@ -135,6 +136,7 @@ declare const fullApi: ApiFromModules<{
   "lib/internalQueries/settings": typeof lib_internalQueries_settings;
   "lib/internalQueries/stripe": typeof lib_internalQueries_stripe;
   "lib/notifications/index": typeof lib_notifications_index;
+  "lib/public/publicFns": typeof lib_public_publicFns;
   "lib/stripe/backfill": typeof lib_stripe_backfill;
   "lib/stripe/checkout": typeof lib_stripe_checkout;
   "lib/stripe/connect": typeof lib_stripe_connect;
