@@ -52,7 +52,7 @@ function getPlatform() {
 // ── Component ─────────────────────────────────────────────────────
 
 export function CreativeProfileClient({ profile, userId }: Props) {
-    const deepLink = `wondarapp://creative/${userId}`;
+    const deepLink = `wondarapp://public/creative/${userId}`;
     const [bannerDismissed, setBannerDismissed] = useState(false);
     const [showStoreModal, setShowStoreModal] = useState(false);
 
