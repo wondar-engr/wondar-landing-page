@@ -3,6 +3,12 @@ import { v } from "convex/values";
 import { getAuthUserId } from "../../../auth";
 import { sendNotification } from "../../notifications";
 import { BookingStatusUnion } from "../../../../convex/unions";
+import {
+    formatCents,
+    formatDate,
+    formatTime,
+} from "@convex/utils/helpers/bookings";
+import { internal } from "@convex/_generated/api";
 
 // ==========================================
 // HELPERS
@@ -146,15 +152,28 @@ export const createBooking = mutation({
             rescheduleHistory: [],
         });
 
-        // Get client name for notification
-        const clientProfile = await ctx.db
-            .query("profiles")
-            .withIndex("by_userId", q => q.eq("userId", clientId))
-            .first();
+        // ── Fetch names for notifications ─────────────────────────
+        const [clientProfile, creativeProfile] = await Promise.all([
+            ctx.db
+                .query("profiles")
+                .withIndex("by_userId", q => q.eq("userId", clientId))
+                .first(),
+            ctx.db
+                .query("profiles")
+                .withIndex("by_userId", q => q.eq("userId", args.creativeId))
+                .first(),
+        ]);
 
         const clientName = clientProfile
             ? `${clientProfile.firstName || ""} ${clientProfile.lastName || ""}`.trim()
             : "A client";
+
+        const creativeName = creativeProfile
+            ? `${creativeProfile.firstName ?? ""} ${creativeProfile.lastName ?? ""}`.trim()
+            : `Creative (${args.creativeId.slice(-6)})`;
+
+        const serviceDate = formatDate(args.dateBooked);
+        const timeWindow = `${formatTime(args.startTime)} → ${formatTime(endTime)}`;
 
         // Notify creative
         await sendNotification(ctx, {
@@ -165,6 +184,38 @@ export const createBooking = mutation({
             meta: { screen: "booking_detail", id: bookingId },
             metaUser: clientId,
         });
+
+        // ── Telegram → BOOKINGS ───────────────────────────────────
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendTelegramNotification,
+            {
+                text: [
+                    `📅 NEW BOOKING REQUEST`,
+                    ``,
+                    `📋 Order No:   ${orderNo}`,
+                    `🆔 Booking ID: ${bookingId}`,
+                    `🎨 Creative:   ${creativeName}`,
+                    `👤 Client:     ${clientName}`,
+                    `🛠 Service:    ${service.name}`,
+                    `📅 Date:       ${serviceDate}`,
+                    `🕐 Time:       ${timeWindow}`,
+                    ``,
+                    `💰 Pricing Breakdown`,
+                    `   Service Fee:     ${formatCents(serviceFee)}`,
+                    `   Booking Fee:     ${formatCents(bookingFee)}`,
+                    `   Platform Fee:    ${formatCents(platformClientFeeAmount)} (client ${clientFeePercent}%)`,
+                    `   Due Now:         ${formatCents(upfrontChargeAmount)}`,
+                    `   Due After:       ${formatCents(remainingDueAmount)}`,
+                    ``,
+                    args.note ? `📝 Note: ${args.note}` : null,
+                    `ℹ️ Awaiting creative acceptance.`,
+                ]
+                    .filter(Boolean)
+                    .join("\n"),
+                category: "BOOKINGS",
+            },
+        );
 
         return {
             bookingId,
@@ -293,87 +344,6 @@ export const getClientBookings = query({
 // GET AVAILABLE TIME SLOTS
 // ==========================================
 
-// export const getAvailableTimeSlots = query({
-//     args: {
-//         creativeId: v.string(),
-//         serviceId: v.id("services"),
-//         dateBooked: v.number(),
-//         // clientNow: v.number(), // Client's current timestamp
-//     },
-//     handler: async (ctx, { creativeId, serviceId, dateBooked, clientNow }) => {
-//         const service = await ctx.db.get(serviceId);
-//         if (!service) return [];
-
-//         const date = new Date(dateBooked);
-//         const dayOfWeek = date.getDay();
-
-//         const dayAvailability = service.availability?.find(
-//             a => a.day === dayOfWeek && a.selected,
-//         );
-
-//         if (!dayAvailability) return [];
-
-//         // Get existing bookings for this day
-//         const existingBookings = await ctx.db
-//             .query("bookings")
-//             .withIndex("by_creative", q => q.eq("creativeId", creativeId))
-//             .filter(q =>
-//                 q.and(
-//                     q.eq(q.field("dateBooked"), dateBooked),
-//                     q.neq(q.field("status"), "CANCELLED"),
-//                 ),
-//             )
-//             .collect();
-
-//         const duration = service.duration;
-//         const buffer = service.bufferTime || 0;
-//         const slotInterval = duration + buffer;
-
-//         // Check if dateBooked is today by comparing date portions
-//         const clientDate = new Date(clientNow);
-//         const bookedDate = new Date(dateBooked);
-
-//         // Check if selected date is today
-//         const isToday =
-//             clientDate.getFullYear() === bookedDate.getFullYear() &&
-//             clientDate.getMonth() === bookedDate.getMonth() &&
-//             clientDate.getDate() === bookedDate.getDate();
-
-//         // Calculate current time in minutes from midnight + buffer
-//         // Buffer gives creative time to prepare if booking is made last minute
-//         const currentMinutesFromMidnight = isToday
-//             ? clientDate.getHours() * 60 + clientDate.getMinutes() + buffer
-//             : 0;
-
-//         const slots: { start: number; end: number; available: boolean }[] = [];
-
-//         let currentTime = dayAvailability.start;
-//         while (currentTime + duration <= dayAvailability.end) {
-//             const slotStart = currentTime;
-//             const slotEnd = currentTime + duration;
-
-//             // Check if slot is in the past (for today only)
-//             const isPastSlot =
-//                 isToday && slotStart < currentMinutesFromMidnight;
-
-//             // Check for booking conflicts
-//             const isBooked = existingBookings.some(
-//                 booking =>
-//                     slotStart < booking.endTime && slotEnd > booking.startTime,
-//             );
-
-//             slots.push({
-//                 start: slotStart,
-//                 end: slotEnd,
-//                 available: !isBooked && !isPastSlot,
-//             });
-//             currentTime += slotInterval;
-//         }
-
-//         return slots;
-//     },
-// });
-
 export const getAvailableTimeSlots = query({
     args: {
         creativeId: v.string(),
@@ -464,14 +434,30 @@ export const cancelBooking = mutation({
             updatedAt: Date.now(),
         });
 
-        const clientProfile = await ctx.db
-            .query("profiles")
-            .withIndex("by_userId", q => q.eq("userId", clientId))
-            .first();
+        // ── Fetch context ─────────────────────────────────────────
+        const [clientProfile, creativeProfile, service] = await Promise.all([
+            ctx.db
+                .query("profiles")
+                .withIndex("by_userId", q => q.eq("userId", clientId))
+                .first(),
+            ctx.db
+                .query("profiles")
+                .withIndex("by_userId", q => q.eq("userId", booking.creativeId))
+                .first(),
+            ctx.db.get(booking.serviceId),
+        ]);
 
         const clientName = clientProfile
-            ? `${clientProfile.firstName || ""} ${clientProfile.lastName || ""}`.trim()
-            : "Client";
+            ? `${clientProfile.firstName ?? ""} ${clientProfile.lastName ?? ""}`.trim()
+            : `Client (${clientId.slice(-6)})`;
+
+        const creativeName = creativeProfile
+            ? `${creativeProfile.firstName ?? ""} ${creativeProfile.lastName ?? ""}`.trim()
+            : `Creative (${booking.creativeId.slice(-6)})`;
+
+        const serviceName = service?.name ?? "Unknown Service";
+        const serviceDate = formatDate(booking.dateBooked);
+        const timeWindow = `${formatTime(booking.startTime)} → ${formatTime(booking.endTime)}`;
 
         await sendNotification(ctx, {
             userId: booking.creativeId,
@@ -481,6 +467,35 @@ export const cancelBooking = mutation({
             meta: { screen: "booking_detail", id: bookingId },
             metaUser: clientId,
         });
+
+        // ── Telegram → BOOKINGS ───────────────────────────────────
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendTelegramNotification,
+            {
+                text: [
+                    `❌ BOOKING CANCELLED — By Client`,
+                    ``,
+                    `📋 Order No:   ${booking.orderNo}`,
+                    `🆔 Booking ID: ${bookingId}`,
+                    `🎨 Creative:   ${creativeName}`,
+                    `👤 Client:     ${clientName}`,
+                    `🛠 Service:    ${serviceName}`,
+                    `📅 Date:       ${serviceDate}`,
+                    `🕐 Time:       ${timeWindow}`,
+                    ``,
+                    `📝 Reason: ${reason}`,
+                    ``,
+                    `💰 Payment Phase: ${booking.paymentPhase}`,
+                    booking.paymentPhase === "UPFRONT_PAID"
+                        ? `⚠️ Client already paid upfront. Review refund eligibility.`
+                        : `ℹ️ No payment was taken.`,
+                ]
+                    .filter(Boolean)
+                    .join("\n"),
+                category: "BOOKINGS",
+            },
+        );
 
         return { success: true };
     },

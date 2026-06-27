@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { ActionCtx } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { getStripe } from "@convex/lib/stripe";
+import { extractBalance } from "@convex/utils/helpers/stripe";
 
 export async function handleAccountUpdated(
     ctx: ActionCtx,
@@ -58,21 +59,18 @@ export async function handleBalanceAvailable(
     stripeAccountId: string | undefined,
 ) {
     if (!stripeAccountId) {
+        // This is a platform-level balance event, not a connected account
+        // Log it for visibility but don't try to update any creative's record
         console.log(
-            "[Stripe] balance.available fired without account ID — skipping",
+            "[Stripe] balance.available for platform account — skipping",
+            `available: ${balance.available.reduce((s, b) => s + b.amount, 0)}`,
+            `pending: ${balance.pending.reduce((s, b) => s + b.amount, 0)}`,
         );
         return;
     }
 
     // Available balance in cents (sum across currencies, usually just one)
-    const availableBalance = balance.available.reduce(
-        (sum, b) => sum + b.amount,
-        0,
-    );
-    const pendingBalance = balance.pending.reduce(
-        (sum, b) => sum + b.amount,
-        0,
-    );
+    const { availableBalance, pendingBalance } = extractBalance(balance);
 
     await ctx.runMutation(internal.stripe.webhooks.updateAccountBalance, {
         stripeAccountId,
@@ -98,14 +96,7 @@ export async function syncAccountBalance(
         { stripeAccount: stripeAccountId },
     );
 
-    const availableBalance = balance.available.reduce(
-        (sum, b) => sum + b.amount,
-        0,
-    );
-    const pendingBalance = balance.pending.reduce(
-        (sum, b) => sum + b.amount,
-        0,
-    );
+    const { availableBalance, pendingBalance } = extractBalance(balance);
 
     await ctx.runMutation(internal.stripe.webhooks.updateAccountBalance, {
         stripeAccountId,

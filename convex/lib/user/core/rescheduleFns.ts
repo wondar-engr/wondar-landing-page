@@ -2,8 +2,9 @@ import { mutation } from "../../../_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "../../../auth";
 import { sendNotification } from "../../notifications";
+import { internal } from "@convex/_generated/api";
+import { formatDate, formatTime } from "@convex/utils/helpers/bookings";
 
-// configurable policy
 const MAX_RESCHEDULES = 2;
 const REQUEST_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -13,11 +14,35 @@ function isBefore24h(dateBooked: number, startTime: number) {
     return serviceDate.getTime() - Date.now() >= 24 * 60 * 60 * 1000;
 }
 
-/**
- * Client or creative requests reschedule.
- * - If booking is PENDING: applies immediately.
- * - If CONFIRMED/PAID: creates REQUESTED workflow.
- */
+// ── Shared context fetcher ────────────────────────────────────────
+async function getRescheduleContext(ctx: any, booking: any) {
+    const [clientProfile, creativeProfile, service] = await Promise.all([
+        ctx.db
+            .query("profiles")
+            .withIndex("by_userId", (q: any) =>
+                q.eq("userId", booking.clientId),
+            )
+            .first(),
+        ctx.db
+            .query("profiles")
+            .withIndex("by_userId", (q: any) =>
+                q.eq("userId", booking.creativeId),
+            )
+            .first(),
+        ctx.db.get(booking.serviceId),
+    ]);
+
+    return {
+        clientName: clientProfile
+            ? `${clientProfile.firstName ?? ""} ${clientProfile.lastName ?? ""}`.trim()
+            : `Client (${booking.clientId.slice(-6)})`,
+        creativeName: creativeProfile
+            ? `${creativeProfile.firstName ?? ""} ${creativeProfile.lastName ?? ""}`.trim()
+            : `Creative (${booking.creativeId.slice(-6)})`,
+        serviceName: service?.name ?? "Unknown Service",
+    };
+}
+
 export const requestReschedule = mutation({
     args: {
         bookingId: v.id("bookings"),
@@ -39,11 +64,13 @@ export const requestReschedule = mutation({
         if (!isClient) throw new Error("Only client can request reschedule");
 
         if (
-            booking.status === "IN_PROGRESS" ||
-            booking.status === "COMPLETED" ||
-            booking.status === "CANCELLED" ||
-            booking.status === "REFUNDED" ||
-            booking.status === "DISPUTE"
+            [
+                "IN_PROGRESS",
+                "COMPLETED",
+                "CANCELLED",
+                "REFUNDED",
+                "DISPUTE",
+            ].includes(booking.status)
         ) {
             throw new Error("Booking cannot be rescheduled at this stage");
         }
@@ -80,7 +107,9 @@ export const requestReschedule = mutation({
             expiresAt: Date.now() + REQUEST_TTL_MS,
         };
 
-        // PENDING: immediate apply (no approval needed)
+        const ctx_ = await getRescheduleContext(ctx, booking);
+
+        // PENDING — immediate apply
         if (booking.status === "PENDING") {
             await ctx.db.patch(bookingId, {
                 dateBooked: newDateBooked,
@@ -96,10 +125,33 @@ export const requestReschedule = mutation({
                 updatedAt: Date.now(),
             });
 
+            await ctx.scheduler.runAfter(
+                0,
+                internal.lib.appActions.notifications.sendTelegramNotification,
+                {
+                    text: [
+                        `📅 RESCHEDULE — Applied Immediately (Pending Booking)`,
+                        ``,
+                        `📋 Order No:   ${booking.orderNo}`,
+                        `🆔 Booking ID: ${bookingId}`,
+                        `🎨 Creative:   ${ctx_.creativeName}`,
+                        `👤 Client:     ${ctx_.clientName}`,
+                        `🛠 Service:    ${ctx_.serviceName}`,
+                        ``,
+                        `📆 Old Date:   ${formatDate(booking.dateBooked)} ${formatTime(booking.startTime)} → ${formatTime(booking.endTime)}`,
+                        `📆 New Date:   ${formatDate(newDateBooked)} ${formatTime(newStartTime)} → ${formatTime(newEndTime)}`,
+                        reason ? `📝 Reason: ${reason}` : null,
+                    ]
+                        .filter(Boolean)
+                        .join("\n"),
+                    category: "BOOKINGS",
+                },
+            );
+
             return { success: true, mode: "IMMEDIATE" };
         }
 
-        // CONFIRMED/PAID: approval workflow
+        // CONFIRMED/PAID — approval workflow
         if (booking.rescheduleStatus === "REQUESTED") {
             throw new Error("A reschedule request is already pending");
         }
@@ -110,9 +162,8 @@ export const requestReschedule = mutation({
             updatedAt: Date.now(),
         });
 
-        const targetUserId = isClient ? booking.creativeId : booking.clientId;
         await sendNotification(ctx, {
-            userId: targetUserId,
+            userId: booking.creativeId,
             title: "Reschedule Request",
             body: "You have a new booking reschedule request to review.",
             type: "BOOKING",
@@ -124,13 +175,35 @@ export const requestReschedule = mutation({
             metaUser: userId,
         });
 
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendTelegramNotification,
+            {
+                text: [
+                    `🔄 RESCHEDULE REQUESTED — Awaiting Creative Approval`,
+                    ``,
+                    `📋 Order No:   ${booking.orderNo}`,
+                    `🆔 Booking ID: ${bookingId}`,
+                    `🎨 Creative:   ${ctx_.creativeName}`,
+                    `👤 Client:     ${ctx_.clientName}`,
+                    `🛠 Service:    ${ctx_.serviceName}`,
+                    ``,
+                    `📆 Old Date:   ${formatDate(booking.dateBooked)} ${formatTime(booking.startTime)} → ${formatTime(booking.endTime)}`,
+                    `📆 New Date:   ${formatDate(newDateBooked)} ${formatTime(newStartTime)} → ${formatTime(newEndTime)}`,
+                    reason ? `📝 Reason: ${reason}` : null,
+                    ``,
+                    `⏳ Expires in 24hrs if creative doesn't respond.`,
+                ]
+                    .filter(Boolean)
+                    .join("\n"),
+                category: "BOOKINGS",
+            },
+        );
+
         return { success: true, mode: "REQUESTED" };
     },
 });
 
-/**
- * Only the opposite party can approve/reject pending request.
- */
 export const respondRescheduleRequest = mutation({
     args: {
         bookingId: v.id("bookings"),
@@ -149,7 +222,6 @@ export const respondRescheduleRequest = mutation({
             throw new Error("No pending reschedule request");
         }
 
-        // only opposite side responds
         if (req.requestedBy === userId) {
             throw new Error(
                 "Requester cannot respond to own reschedule request",
@@ -214,10 +286,14 @@ export const respondRescheduleRequest = mutation({
             });
         }
 
-        const notifyUserId = req.requestedBy;
+        const ctx_ = await getRescheduleContext(ctx, booking);
+        const responderName =
+            userId === booking.creativeId ? ctx_.creativeName : ctx_.clientName;
+
+        // ── Notify requester ──────────────────────────────────────
         await sendNotification(ctx, {
-            userId: notifyUserId,
-            title: approve ? "Reschedule Approved" : "Reschedule Declined",
+            userId: req.requestedBy,
+            title: approve ? "Reschedule Approved ✅" : "Reschedule Declined",
             body: approve
                 ? "Your reschedule request was approved."
                 : `Your reschedule request was declined${reason ? `: ${reason}` : "."}`,
@@ -231,17 +307,40 @@ export const respondRescheduleRequest = mutation({
             metaUser: userId,
         });
 
+        // ── Telegram → BOOKINGS ───────────────────────────────────
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendTelegramNotification,
+            {
+                text: [
+                    approve
+                        ? `✅ RESCHEDULE APPROVED`
+                        : `❌ RESCHEDULE REJECTED`,
+                    ``,
+                    `📋 Order No:   ${booking.orderNo}`,
+                    `🆔 Booking ID: ${bookingId}`,
+                    `🎨 Creative:   ${ctx_.creativeName}`,
+                    `👤 Client:     ${ctx_.clientName}`,
+                    `🛠 Service:    ${ctx_.serviceName}`,
+                    ``,
+                    approve
+                        ? `📆 New Date:   ${formatDate(req.newDateBooked)} ${formatTime(req.newStartTime)} → ${formatTime(req.newEndTime)}`
+                        : `📆 Kept Date:  ${formatDate(booking.dateBooked)} ${formatTime(booking.startTime)} → ${formatTime(booking.endTime)}`,
+                    `🗣 Response By: ${responderName}`,
+                    reason ? `📝 Reason: ${reason}` : null,
+                ]
+                    .filter(Boolean)
+                    .join("\n"),
+                category: "BOOKINGS",
+            },
+        );
+
         return { success: true, status: nextStatus };
     },
 });
 
-/**
- * Optional manual expiry (cron-friendly).
- */
 export const expireRescheduleRequest = mutation({
-    args: {
-        bookingId: v.id("bookings"),
-    },
+    args: { bookingId: v.id("bookings") },
     handler: async (ctx, { bookingId }) => {
         const booking = await ctx.db.get(bookingId);
         if (
@@ -284,17 +383,16 @@ export const cancelRescheduleRequest = mutation({
 
         const booking = await ctx.db.get(bookingId);
         if (!booking) throw new Error("Booking not found");
-
-        if (booking.clientId !== userId)
+        if (booking.clientId !== userId) {
             throw new Error(
                 "Only the client can withdraw a reschedule request",
             );
-
-        if (booking.rescheduleStatus !== "REQUESTED")
+        }
+        if (booking.rescheduleStatus !== "REQUESTED") {
             throw new Error("No pending reschedule request to withdraw");
+        }
 
         const req = booking.rescheduleRequest;
-
         if (!req) throw new Error("Reschedule request data missing");
 
         await ctx.db.patch(bookingId, {
@@ -313,6 +411,8 @@ export const cancelRescheduleRequest = mutation({
             updatedAt: Date.now(),
         });
 
+        const ctx_ = await getRescheduleContext(ctx, booking);
+
         await sendNotification(ctx, {
             userId: booking.creativeId,
             title: "Reschedule Withdrawn",
@@ -320,6 +420,26 @@ export const cancelRescheduleRequest = mutation({
             type: "BOOKING",
             meta: { screen: "booking_detail", id: bookingId },
         });
+
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendTelegramNotification,
+            {
+                text: [
+                    `↩️ RESCHEDULE WITHDRAWN — By Client`,
+                    ``,
+                    `📋 Order No:   ${booking.orderNo}`,
+                    `🆔 Booking ID: ${bookingId}`,
+                    `🎨 Creative:   ${ctx_.creativeName}`,
+                    `👤 Client:     ${ctx_.clientName}`,
+                    `🛠 Service:    ${ctx_.serviceName}`,
+                    ``,
+                    `📆 Keeping original: ${formatDate(booking.dateBooked)} ${formatTime(booking.startTime)} → ${formatTime(booking.endTime)}`,
+                    `ℹ️ Client withdrew before creative responded.`,
+                ].join("\n"),
+                category: "BOOKINGS",
+            },
+        );
 
         return { success: true };
     },

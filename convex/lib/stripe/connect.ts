@@ -6,6 +6,7 @@ import { internal } from "../../_generated/api";
 import { getStripe } from "./index";
 import { StripeError } from "../../utils/helpers/types";
 import { getAuthUserId } from "@convex/auth";
+import { extractBalance } from "@convex/utils/helpers/stripe";
 
 const REFRESH_URL = `${process.env.APP_URL}/stripe/connect/refresh`;
 const SUCCESS_URL = `${process.env.APP_URL}/stripe/connect/success`;
@@ -435,21 +436,17 @@ export const syncMyBalance = action({
             },
         );
 
-        const available = balance.available.reduce(
-            (sum, b) => sum + b.amount,
-            0,
-        );
-        const pending = balance.pending.reduce((sum, b) => sum + b.amount, 0);
+        const { availableBalance, pendingBalance } = extractBalance(balance);
 
         await ctx.runMutation(
             internal.lib.stripe.connectMutations.updateAccountBalance,
             {
                 stripeAccountId: stripeAccount.stripeAccountId,
-                balance: available,
-                pendingBalance: pending,
+                balance: availableBalance,
+                pendingBalance: pendingBalance,
             },
         );
 
-        return { available, pending };
+        return { available: availableBalance, pending: pendingBalance };
     },
 });

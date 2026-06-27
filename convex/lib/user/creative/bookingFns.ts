@@ -4,6 +4,11 @@ import { getAuthUserId } from "../../../auth";
 import { sendNotification } from "../../../lib/notifications";
 import { BookingStatusUnion } from "../../../unions";
 import { internal } from "@convex/_generated/api";
+import {
+    formatCents,
+    formatDate,
+    formatTime,
+} from "@convex/utils/helpers/bookings";
 
 // ==========================================
 // GET CREATIVE BOOKINGS
@@ -137,14 +142,31 @@ export const acceptBooking = mutation({
             });
         }
 
-        const creativeProfile = await ctx.db
-            .query("profiles")
-            .withIndex("by_userId", q => q.eq("userId", creativeId))
-            .first();
+        // ── Fetch context ─────────────────────────────────────────
+        const [creativeProfile, clientProfile] = await Promise.all([
+            ctx.db
+                .query("profiles")
+                .withIndex("by_userId", q => q.eq("userId", creativeId))
+                .first(),
+            ctx.db
+                .query("profiles")
+                .withIndex("by_userId", q => q.eq("userId", booking.clientId))
+                .first(),
+        ]);
 
         const creativeName = creativeProfile
-            ? `${creativeProfile.firstName || ""} ${creativeProfile.lastName || ""}`.trim()
-            : "The creative";
+            ? `${creativeProfile.firstName ?? ""} ${creativeProfile.lastName ?? ""}`.trim()
+            : `Creative (${creativeId.slice(-6)})`;
+
+        const clientName = clientProfile
+            ? `${clientProfile.firstName ?? ""} ${clientProfile.lastName ?? ""}`.trim()
+            : `Client (${booking.clientId.slice(-6)})`;
+
+        const serviceName = service?.name ?? "Unknown Service";
+
+        const serviceDate = formatDate(booking.dateBooked);
+        const timeWindow = `${formatTime(booking.startTime)} → ${formatTime(booking.endTime)}`;
+        const upfrontFormatted = formatCents(booking.upfrontChargeAmount);
 
         await sendNotification(ctx, {
             userId: booking.clientId,
@@ -160,6 +182,32 @@ export const acceptBooking = mutation({
             },
             metaUser: creativeId,
         });
+
+        // ── Telegram → BOOKINGS ───────────────────────────────────
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendTelegramNotification,
+            {
+                text: [
+                    `✅ BOOKING ACCEPTED`,
+                    ``,
+                    `📋 Order No:   ${booking.orderNo}`,
+                    `🆔 Booking ID: ${bookingId}`,
+                    `🎨 Creative:   ${creativeName}`,
+                    `👤 Client:     ${clientName}`,
+                    `🛠 Service:    ${serviceName}`,
+                    `📅 Date:       ${serviceDate}`,
+                    `🕐 Time:       ${timeWindow}`,
+                    ``,
+                    `💰 Payment Due`,
+                    `   Upfront:    ${upfrontFormatted}`,
+                    `   Remaining:  ${formatCents(booking.remainingDueAmount)}`,
+                    ``,
+                    `ℹ️ Awaiting client upfront payment to confirm slot.`,
+                ].join("\n"),
+                category: "BOOKINGS",
+            },
+        );
 
         return {
             success: true,
@@ -208,6 +256,30 @@ export const declineBooking = mutation({
             });
         }
 
+        // ── Fetch context ─────────────────────────────────────────
+        const [creativeProfile, clientProfile] = await Promise.all([
+            ctx.db
+                .query("profiles")
+                .withIndex("by_userId", q => q.eq("userId", creativeId))
+                .first(),
+            ctx.db
+                .query("profiles")
+                .withIndex("by_userId", q => q.eq("userId", booking.clientId))
+                .first(),
+        ]);
+
+        const creativeName = creativeProfile
+            ? `${creativeProfile.firstName ?? ""} ${creativeProfile.lastName ?? ""}`.trim()
+            : `Creative (${creativeId.slice(-6)})`;
+
+        const clientName = clientProfile
+            ? `${clientProfile.firstName ?? ""} ${clientProfile.lastName ?? ""}`.trim()
+            : `Client (${booking.clientId.slice(-6)})`;
+
+        const serviceName = service?.name ?? "Unknown Service";
+        const serviceDate = formatDate(booking.dateBooked);
+        const timeWindow = `${formatTime(booking.startTime)} → ${formatTime(booking.endTime)}`;
+
         await sendNotification(ctx, {
             userId: booking.clientId,
             title: "Booking Declined",
@@ -220,6 +292,29 @@ export const declineBooking = mutation({
             },
             metaUser: creativeId,
         });
+
+        // ── Telegram → BOOKINGS ───────────────────────────────────
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendTelegramNotification,
+            {
+                text: [
+                    `❌ BOOKING DECLINED — By Creative`,
+                    ``,
+                    `📋 Order No:   ${booking.orderNo}`,
+                    `🆔 Booking ID: ${bookingId}`,
+                    `🎨 Creative:   ${creativeName}`,
+                    `👤 Client:     ${clientName}`,
+                    `🛠 Service:    ${serviceName}`,
+                    `📅 Date:       ${serviceDate}`,
+                    `🕐 Time:       ${timeWindow}`,
+                    ``,
+                    `📝 Reason: ${reason}`,
+                    `ℹ️ No payment was taken.`,
+                ].join("\n"),
+                category: "BOOKINGS",
+            },
+        );
 
         return { success: true, status: "CANCELLED", reason };
     },
@@ -272,6 +367,31 @@ export const startService = mutation({
             updatedAt: Date.now(),
         });
 
+        // ── Fetch context ─────────────────────────────────────────
+        const [creativeProfile, clientProfile, service] = await Promise.all([
+            ctx.db
+                .query("profiles")
+                .withIndex("by_userId", q => q.eq("userId", creativeId))
+                .first(),
+            ctx.db
+                .query("profiles")
+                .withIndex("by_userId", q => q.eq("userId", booking.clientId))
+                .first(),
+            ctx.db.get(booking.serviceId),
+        ]);
+
+        const creativeName = creativeProfile
+            ? `${creativeProfile.firstName ?? ""} ${creativeProfile.lastName ?? ""}`.trim()
+            : `Creative (${creativeId.slice(-6)})`;
+
+        const clientName = clientProfile
+            ? `${clientProfile.firstName ?? ""} ${clientProfile.lastName ?? ""}`.trim()
+            : `Client (${booking.clientId.slice(-6)})`;
+
+        const serviceName = service?.name ?? "Unknown Service";
+        const serviceDate = formatDate(booking.dateBooked);
+        const timeWindow = `${formatTime(booking.startTime)} → ${formatTime(booking.endTime)}`;
+
         await sendNotification(ctx, {
             userId: booking.clientId,
             title: "Service Started 🎬",
@@ -281,13 +401,26 @@ export const startService = mutation({
             metaUser: creativeId,
         });
 
-        const service = await ctx.db.get(booking.serviceId);
-
+        // ── Telegram → BOOKINGS ───────────────────────────────────
         await ctx.scheduler.runAfter(
             0,
             internal.lib.appActions.notifications.sendTelegramNotification,
             {
-                text: `Booking ${bookingId} started by creative ${creativeId}. Client: ${booking.clientId}. Service: ${service ? service.name : "Unknown"}`,
+                text: [
+                    `🎬 SERVICE STARTED`,
+                    ``,
+                    `📋 Order No:   ${booking.orderNo}`,
+                    `🆔 Booking ID: ${bookingId}`,
+                    `🎨 Creative:   ${creativeName}`,
+                    `👤 Client:     ${clientName}`,
+                    `🛠 Service:    ${serviceName}`,
+                    `📅 Date:       ${serviceDate}`,
+                    `🕐 Time:       ${timeWindow}`,
+                    ``,
+                    `⏱ Started at: ${new Date(now).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`,
+                    `💰 Remaining due after completion: ${formatCents(booking.remainingDueAmount)}`,
+                ].join("\n"),
+                category: "BOOKINGS",
             },
         );
 
@@ -337,6 +470,32 @@ export const completeService = mutation({
             updatedAt: now,
         });
 
+        // ── Fetch context ─────────────────────────────────────────
+        const [creativeProfile, clientProfile, service] = await Promise.all([
+            ctx.db
+                .query("profiles")
+                .withIndex("by_userId", q => q.eq("userId", creativeId))
+                .first(),
+            ctx.db
+                .query("profiles")
+                .withIndex("by_userId", q => q.eq("userId", booking.clientId))
+                .first(),
+            ctx.db.get(booking.serviceId),
+        ]);
+
+        const creativeName = creativeProfile
+            ? `${creativeProfile.firstName ?? ""} ${creativeProfile.lastName ?? ""}`.trim()
+            : `Creative (${creativeId.slice(-6)})`;
+
+        const clientName = clientProfile
+            ? `${clientProfile.firstName ?? ""} ${clientProfile.lastName ?? ""}`.trim()
+            : `Client (${booking.clientId.slice(-6)})`;
+
+        const serviceName = service?.name ?? "Unknown Service";
+        const serviceDate = formatDate(booking.dateBooked);
+        const timeWindow = `${formatTime(booking.startTime)} → ${formatTime(booking.endTime)}`;
+        const docsCount = jobCompletionDocs?.length ?? 0;
+
         await sendNotification(ctx, {
             userId: booking.clientId,
             title: "Service Completed! ⭐",
@@ -346,11 +505,28 @@ export const completeService = mutation({
             metaUser: creativeId,
         });
 
+        // ── Telegram → BOOKINGS ───────────────────────────────────
         await ctx.scheduler.runAfter(
             0,
             internal.lib.appActions.notifications.sendTelegramNotification,
             {
-                text: `Booking ${bookingId} marked as completed by creative ${creativeId}. Client: ${booking.clientId}.`,
+                text: [
+                    `✅ SERVICE COMPLETED — By Creative`,
+                    ``,
+                    `📋 Order No:   ${booking.orderNo}`,
+                    `🆔 Booking ID: ${bookingId}`,
+                    `🎨 Creative:   ${creativeName}`,
+                    `👤 Client:     ${clientName}`,
+                    `🛠 Service:    ${serviceName}`,
+                    `📅 Date:       ${serviceDate}`,
+                    `🕐 Time:       ${timeWindow}`,
+                    ``,
+                    `📎 Completion Docs: ${docsCount} file${docsCount !== 1 ? "s" : ""} uploaded`,
+                    `💰 Final Payment Due: ${formatCents(booking.remainingDueAmount)}`,
+                    ``,
+                    `ℹ️ Awaiting client's final payment and review.`,
+                ].join("\n"),
+                category: "BOOKINGS",
             },
         );
 
@@ -387,6 +563,31 @@ export const cancelBooking = mutation({
             updatedAt: Date.now(),
         });
 
+        // ── Fetch context ─────────────────────────────────────────
+        const [creativeProfile, clientProfile, service] = await Promise.all([
+            ctx.db
+                .query("profiles")
+                .withIndex("by_userId", q => q.eq("userId", creativeId))
+                .first(),
+            ctx.db
+                .query("profiles")
+                .withIndex("by_userId", q => q.eq("userId", booking.clientId))
+                .first(),
+            ctx.db.get(booking.serviceId),
+        ]);
+
+        const creativeName = creativeProfile
+            ? `${creativeProfile.firstName ?? ""} ${creativeProfile.lastName ?? ""}`.trim()
+            : `Creative (${creativeId.slice(-6)})`;
+
+        const clientName = clientProfile
+            ? `${clientProfile.firstName ?? ""} ${clientProfile.lastName ?? ""}`.trim()
+            : `Client (${booking.clientId.slice(-6)})`;
+
+        const serviceName = service?.name ?? "Unknown Service";
+        const serviceDate = formatDate(booking.dateBooked);
+        const timeWindow = `${formatTime(booking.startTime)} → ${formatTime(booking.endTime)}`;
+
         await sendNotification(ctx, {
             userId: booking.clientId,
             title: "Booking Cancelled",
@@ -399,6 +600,34 @@ export const cancelBooking = mutation({
             },
             metaUser: creativeId,
         });
+
+        // ── Telegram → BOOKINGS ───────────────────────────────────
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendTelegramNotification,
+            {
+                text: [
+                    `❌ BOOKING CANCELLED — By Creative`,
+                    ``,
+                    `📋 Order No:   ${booking.orderNo}`,
+                    `🆔 Booking ID: ${bookingId}`,
+                    `🎨 Creative:   ${creativeName}`,
+                    `👤 Client:     ${clientName}`,
+                    `🛠 Service:    ${serviceName}`,
+                    `📅 Date:       ${serviceDate}`,
+                    `🕐 Time:       ${timeWindow}`,
+                    ``,
+                    `📝 Reason: ${reason}`,
+                    `💰 Payment Phase: ${booking.paymentPhase}`,
+                    booking.paymentPhase === "UPFRONT_PAID"
+                        ? `⚠️ Client already paid upfront. Review refund eligibility.`
+                        : `ℹ️ No payment was taken.`,
+                ]
+                    .filter(Boolean)
+                    .join("\n"),
+                category: "BOOKINGS",
+            },
+        );
 
         return { success: true, status: "CANCELLED", reason };
     },

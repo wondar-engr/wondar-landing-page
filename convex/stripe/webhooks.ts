@@ -190,6 +190,7 @@ export const handlePaymentSucceeded = internalMutation({
                 internal.lib.appActions.notifications.sendTelegramNotification,
                 {
                     text: `✅ Upfront payment received\nBooking: ${booking._id}\nAmount: $${args.amount / 100}`,
+                    category: "PAYMENTS",
                 },
             );
         } else if (transaction.phase === "FINAL") {
@@ -219,6 +220,7 @@ export const handlePaymentSucceeded = internalMutation({
                 internal.lib.appActions.notifications.sendTelegramNotification,
                 {
                     text: `✅ Final payment received\nBooking: ${booking._id}\nAmount: $${args.amount / 100}`,
+                    category: "PAYMENTS",
                 },
             );
         }
@@ -284,6 +286,7 @@ export const handlePaymentFailed = internalMutation({
             internal.lib.appActions.notifications.sendTelegramNotification,
             {
                 text: `❌ Payment failed\nBooking: ${booking._id}\nReason: ${args.errorMessage}`,
+                category: "PAYMENTS",
             },
         );
 
@@ -357,6 +360,7 @@ export const handleChargeRefunded = internalMutation({
                 internal.lib.appActions.notifications.sendTelegramNotification,
                 {
                     text: `💸 Refund processed\nBooking: ${booking._id}\nAmount: $${args.amountRefunded / 100}`,
+                    category: "PAYMENTS",
                 },
             );
         }
@@ -480,6 +484,7 @@ export const handlePayoutFailed = internalMutation({
                     `Code:     ${args.failureCode ?? "unknown"}`,
                     `Reason:   ${args.failureMessage ?? "unknown"}`,
                 ].join("\n"),
+                category: "PAYMENTS",
             },
         );
 
@@ -559,6 +564,15 @@ export const handlePayoutCreated = internalMutation({
             type: "AUTOMATIC",
             updatedAt: Date.now(),
         });
+
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendTelegramNotification,
+            {
+                text: `💰 Automatic payout created\nCreative: ${stripeAccount.userId}\nPayout ID: ${args.stripePayoutId}\nAmount: $${args.amount / 100}`,
+                category: "PAYMENTS",
+            },
+        );
 
         console.log(
             `[Webhook] Created payout record: ${args.stripePayoutId} - $${args.amount / 100}`,
@@ -645,6 +659,7 @@ export const handleTransferReversed = internalMutation({
                 internal.lib.appActions.notifications.sendTelegramNotification,
                 {
                     text: `⚠️ Transfer reversed\nBooking: ${booking._id}\nAmount reversed: $${args.amountReversed / 100}`,
+                    category: "PAYMENTS",
                 },
             );
         }
@@ -682,5 +697,18 @@ export const updateAccountBalance = internalMutation({
             pendingBalance: args.pendingBalance,
             updatedAt: Date.now(),
         });
+
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendTelegramNotification,
+            {
+                text: `💰 Account balance updated\nCreative: ${account.userId}\nBalance: $${args.balance / 100}\nPending: $${(args.pendingBalance ?? 0) / 100}`,
+                category: "PAYMENTS",
+            },
+        );
+
+        console.log(
+            `[Webhook] Updated account balance for ${args.stripeAccountId}: $${args.balance / 100}`,
+        );
     },
 });

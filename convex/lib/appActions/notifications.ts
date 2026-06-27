@@ -2,19 +2,54 @@ import { v } from "convex/values";
 import { internalAction } from "../../_generated/server";
 import axios from "axios";
 
+export type TelegramCategory =
+    | "PAYMENTS"
+    | "WEBHOOKS"
+    | "DISPUTES"
+    | "ACCOUNTS"
+    | "BOOKINGS"
+    | "GENERAL"; // fallback — maps to existing TG_GROUP_CHAT_ID
+
+const CATEGORY_CHAT_IDS: Record<TelegramCategory, string> = {
+    PAYMENTS: "TG_PAYMENTS_CHAT_ID",
+    WEBHOOKS: "TG_WEBHOOKS_CHAT_ID",
+    DISPUTES: "TG_DISPUTES_CHAT_ID",
+    ACCOUNTS: "TG_ACCOUNTS_CHAT_ID",
+    BOOKINGS: "TG_BOOKINGS_CHAT_ID",
+    GENERAL: "TG_GROUP_CHAT_ID", // ← existing var, nothing breaks
+};
+
 /**
  * Internal action to send Telegram notification
  */
 export const sendTelegramNotification = internalAction({
     args: {
         text: v.string(),
+        category: v.optional(
+            v.union(
+                v.literal("PAYMENTS"),
+                v.literal("WEBHOOKS"),
+                v.literal("DISPUTES"),
+                v.literal("ACCOUNTS"),
+                v.literal("BOOKINGS"),
+                v.literal("GENERAL"),
+            ),
+        ),
     },
     handler: async (_ctx, args) => {
         try {
+            const category = args.category ?? "GENERAL";
+            const envKey = CATEGORY_CHAT_IDS[category];
+            const chatId = process.env[envKey] ?? process.env.TG_GROUP_CHAT_ID;
+            if (!chatId) {
+                console.warn(`[TELEGRAM] No chat ID for category: ${category}`);
+                return false;
+            }
+
             const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TG_BOT_KEY}`;
             await axios.post(`${TELEGRAM_API}/sendMessage`, {
-                chat_id: process.env.TG_GROUP_CHAT_ID,
-                text: `${args.text}.\n\nEvent occurred on ${new Date().toUTCString()}`,
+                chat_id: chatId,
+                text: `${args.text}\n\n🕐 ${new Date().toUTCString()}`,
             });
             return true;
         } catch (err) {

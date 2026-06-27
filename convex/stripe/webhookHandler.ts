@@ -112,10 +112,11 @@ export async function handleWebhookEvent(
                 `🔔 Stripe Webhook`,
                 `Event: ${event.type}`,
                 `ID:    ${event.id}`,
-                event.account ? `Acct:  ${event.account}` : null,
-            ]
-                .filter(Boolean)
-                .join("\n"),
+                event.account ? `Acct:  ${event.account}` : `Acct:  [platform]`,
+                // Full object for debugging — remove once stable
+                `Data:  ${JSON.stringify(event.data.object, null, 2).slice(0, 500)}`,
+            ].join("\n"),
+            category: "WEBHOOKS",
         },
     );
 

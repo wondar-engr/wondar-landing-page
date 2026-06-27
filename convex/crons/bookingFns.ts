@@ -148,6 +148,7 @@ export const processBookingLifecycle = internalMutation({
                             `ℹ️ The creative never accepted or declined this request.`,
                             `   No payment was taken.`,
                         ].join("\n"),
+                        category: "BOOKINGS",
                     },
                 );
 
@@ -203,6 +204,7 @@ export const processBookingLifecycle = internalMutation({
                             `ℹ️ Creative had accepted. Client never paid the upfront.`,
                             `   No charge was made.`,
                         ].join("\n"),
+                        category: "BOOKINGS",
                     },
                 );
 
@@ -286,6 +288,7 @@ export const processBookingLifecycle = internalMutation({
                             ``,
                             `🔧 Action needed: Review and process refund if applicable.`,
                         ].join("\n"),
+                        category: "DISPUTES",
                     },
                 );
 
@@ -308,6 +311,7 @@ export const processBookingLifecycle = internalMutation({
                                 ``,
                                 `🔧 Manual review required. Account visibility reduced.`,
                             ].join("\n"),
+                            category: "ACCOUNTS",
                         },
                     );
                 }
@@ -369,6 +373,7 @@ export const processBookingLifecycle = internalMutation({
                             `   System auto-completed after 60 min grace.`,
                             `   Awaiting client's final payment.`,
                         ].join("\n"),
+                        category: "BOOKINGS",
                     },
                 );
 
@@ -434,6 +439,7 @@ export const processBookingLifecycle = internalMutation({
                             ``,
                             `🔧 Immediate action required. Resolve manually.`,
                         ].join("\n"),
+                        category: "DISPUTES",
                     },
                 );
             }
