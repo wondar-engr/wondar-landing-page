@@ -13,7 +13,11 @@ import {
     handleTransferReversed,
     handlePayoutCreatedEvent,
 } from "./handlers";
-import { handleBalanceAvailable } from "./handlers/accountHandlers";
+import {
+    handleBalanceAvailable,
+    handleCapabilityUpdated,
+    handlePersonUpdated,
+} from "./handlers/accountHandlers";
 import { internal } from "@convex/_generated/api";
 
 interface WebhookResult {
@@ -144,6 +148,22 @@ export async function handleWebhookEvent(
                 await handleAccountDeauthorized(
                     ctx,
                     event.data.object as Stripe.Application,
+                    event.account,
+                );
+                break;
+
+            case "capability.updated":
+                await handleCapabilityUpdated(
+                    ctx,
+                    event.data.object as Stripe.Capability,
+                    event.account,
+                );
+                break;
+
+            case "person.updated":
+                await handlePersonUpdated(
+                    ctx,
+                    event.data.object as Stripe.Person,
                     event.account,
                 );
                 break;
