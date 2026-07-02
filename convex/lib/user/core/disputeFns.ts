@@ -3,11 +3,7 @@ import { v } from "convex/values";
 import { getAuthUserId } from "../../../auth";
 import { sendNotification } from "../../notifications";
 import { internal } from "@convex/_generated/api";
-import {
-    formatCents,
-    formatDate,
-    formatTime,
-} from "@convex/utils/helpers/bookings";
+import { formatDate, formatTime } from "@convex/utils/helpers/bookings";
 
 const DISPUTE_WINDOW_MS = 48 * 60 * 60 * 1000;
 

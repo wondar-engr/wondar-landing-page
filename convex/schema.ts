@@ -33,7 +33,7 @@ import {
     ProfitStatusUnion,
     RescheduleStatusUnion,
     BookingCompletedByUnion,
-    BookingDisputeReasonUnion,
+    // BookingDisputeReasonUnion,
     BookingDisputeStatusUnion,
     BookingDisputeResolutionUnion,
     DisputeOpenedByUnion,
@@ -712,7 +712,7 @@ const schema = defineSchema({
         bookingId: v.id("bookings"),
         clientId: v.string(),
         creativeId: v.string(),
-        reason: BookingDisputeReasonUnion, // CREATIVE_NO_SHOW | CLIENT_NO_PAY | SERVICE_QUALITY | OTHER
+        reason: v.string(), // CREATIVE_NO_SHOW | CLIENT_NO_PAY | SERVICE_QUALITY | OTHER
 
         // Client submission
         clientStatement: v.optional(v.string()),
@@ -813,6 +813,13 @@ const schema = defineSchema({
     })
         .index("by_conversation", ["conversationId"])
         .index("by_conversation_user", ["conversationId", "userId"]),
+    noShowHistory: defineTable({
+        userId: v.string(),
+        clearedBy: v.string(), // admin userId
+        clearedAt: v.number(),
+        previousCount: v.number(), // what the count was before clearing
+        note: v.optional(v.string()), // why it was cleared
+    }).index("by_userId", ["userId"]),
 });
 
 export default schema;

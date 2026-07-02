@@ -309,15 +309,25 @@ export const suspendUser = mutation({
 export const revokeSuspension = mutation({
     args: {
         suspensionId: v.id("userSuspensions"),
-        profileId: v.id("profiles"),
+        userId: v.string(),
     },
-    handler: async (ctx, { suspensionId, profileId }) => {
+    handler: async (ctx, { suspensionId, userId }) => {
         try {
             const adminId = await getAuthUserId(ctx);
             if (!adminId) {
                 throw new CustomError("Unauthorized");
             }
 
+            const user = await ctx.db
+                .query("profiles")
+                .withIndex("by_userId", q => q.eq("userId", userId))
+                .first();
+
+            if (!user) {
+                throw new CustomError("User not found");
+            }
+
+            const profileId = user._id;
             // Update suspension status
             await ctx.db.patch(suspensionId, {
                 status: "REVOKED",
