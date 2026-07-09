@@ -85,6 +85,9 @@ import type * as lib_user_serviceCategories from "../lib/user/serviceCategories.
 import type * as lib_user_userSettings from "../lib/user/userSettings.js";
 import type * as lib_waitlist_core from "../lib/waitlist/core.js";
 import type * as locations from "../locations.js";
+import type * as migrations_cleanSlate from "../migrations/cleanSlate.js";
+import type * as migrations_expandServiceHours from "../migrations/expandServiceHours.js";
+import type * as migrations_seedWorkingHours from "../migrations/seedWorkingHours.js";
 import type * as push from "../push.js";
 import type * as r2 from "../r2.js";
 import type * as seed_systemConfig from "../seed/systemConfig.js";
@@ -205,6 +208,9 @@ declare const fullApi: ApiFromModules<{
   "lib/user/userSettings": typeof lib_user_userSettings;
   "lib/waitlist/core": typeof lib_waitlist_core;
   locations: typeof locations;
+  "migrations/cleanSlate": typeof migrations_cleanSlate;
+  "migrations/expandServiceHours": typeof migrations_expandServiceHours;
+  "migrations/seedWorkingHours": typeof migrations_seedWorkingHours;
   push: typeof push;
   r2: typeof r2;
   "seed/systemConfig": typeof seed_systemConfig;

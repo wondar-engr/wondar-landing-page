@@ -1,9 +1,10 @@
-import { mutation } from "../../../_generated/server";
+import { mutation, QueryCtx } from "../../../_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "../../../auth";
 import { sendNotification } from "../../notifications";
 import { internal } from "@convex/_generated/api";
 import { formatDate, formatTime } from "@convex/utils/helpers/bookings";
+import { Doc } from "@convex/_generated/dataModel";
 
 const MAX_RESCHEDULES = 2;
 const REQUEST_TTL_MS = 24 * 60 * 60 * 1000;
@@ -15,19 +16,15 @@ function isBefore24h(dateBooked: number, startTime: number) {
 }
 
 // ── Shared context fetcher ────────────────────────────────────────
-async function getRescheduleContext(ctx: any, booking: any) {
+async function getRescheduleContext(ctx: QueryCtx, booking: Doc<"bookings">) {
     const [clientProfile, creativeProfile, service] = await Promise.all([
         ctx.db
             .query("profiles")
-            .withIndex("by_userId", (q: any) =>
-                q.eq("userId", booking.clientId),
-            )
+            .withIndex("by_userId", q => q.eq("userId", booking.clientId))
             .first(),
         ctx.db
             .query("profiles")
-            .withIndex("by_userId", (q: any) =>
-                q.eq("userId", booking.creativeId),
-            )
+            .withIndex("by_userId", q => q.eq("userId", booking.creativeId))
             .first(),
         ctx.db.get(booking.serviceId),
     ]);

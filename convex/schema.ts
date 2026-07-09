@@ -294,6 +294,7 @@ const schema = defineSchema({
         dateBooked: v.number(), // Unix timestamp for the day
         startTime: v.number(), // Minutes from midnight
         endTime: v.number(), // startTime + duration
+        clientTimezone: v.string(), // IANA timezone e.g. "America/Chicago", "Africa/Lagos"
 
         status: BookingStatusUnion,
 
@@ -356,6 +357,7 @@ const schema = defineSchema({
                 respondedAt: v.optional(v.number()),
                 responseReason: v.optional(v.string()),
                 expiresAt: v.number(), // e.g. request + 24h
+                newClientTimezone: v.optional(v.string()), // timezone at time of reschedule request
             }),
         ),
         rescheduleHistory: v.optional(
@@ -375,6 +377,7 @@ const schema = defineSchema({
                     respondedAt: v.optional(v.number()),
                     responseReason: v.optional(v.string()),
                     expiresAt: v.number(),
+                    newClientTimezone: v.optional(v.string()),
                 }),
             ),
         ),

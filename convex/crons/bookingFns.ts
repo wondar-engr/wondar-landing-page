@@ -9,15 +9,11 @@ const GRACE_AUTO_COMPLETE_MS = 60 * 60 * 1000;
 const DISPUTE_OVERDUE_MS = 48 * 60 * 60 * 1000;
 
 function getServiceStartMs(dateBooked: number, startTime: number) {
-    const d = new Date(dateBooked);
-    d.setHours(Math.floor(startTime / 60), startTime % 60, 0, 0);
-    return d.getTime();
+    return dateBooked + startTime * 60 * 1000;
 }
 
 function getServiceEndMs(dateBooked: number, endTime: number) {
-    const d = new Date(dateBooked);
-    d.setHours(Math.floor(endTime / 60), endTime % 60, 0, 0);
-    return d.getTime();
+    return dateBooked + endTime * 60 * 1000;
 }
 
 function formatTime(minutes: number): string {

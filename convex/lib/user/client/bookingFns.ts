@@ -41,6 +41,7 @@ export const createBooking = mutation({
         dateBooked: v.number(),
         startTime: v.number(),
         note: v.optional(v.string()),
+        clientTimezone: v.string(), // IANA timezone from device
     },
     handler: async (ctx, args) => {
         const clientId = await getAuthUserId(ctx);
@@ -125,6 +126,7 @@ export const createBooking = mutation({
             startTime: args.startTime,
             endTime,
             status: "PENDING",
+            clientTimezone: args.clientTimezone, // snapshot at time of booking
 
             // Snapshot pricing
             currency,
@@ -354,8 +356,6 @@ export const getAvailableTimeSlots = query({
     handler: async (ctx, { creativeId, serviceId, dateBooked, dayOfWeek }) => {
         const service = await ctx.db.get(serviceId);
         if (!service) return [];
-
-        const date = new Date(dateBooked);
 
         // Use the dayOfWeek sent from frontend (already in client's timezone)
         const dayAvailability = service.availability?.find(

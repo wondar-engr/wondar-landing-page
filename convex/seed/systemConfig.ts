@@ -193,6 +193,29 @@ const DEFAULT_CONFIG: Array<{
         category: "GENERAL" as const,
         isEditable: true,
     },
+
+    // ==========================================
+    // WORKING HOURS
+    // ==========================================
+    {
+        key: "working_hours",
+        value: {
+            start: 0, // midnight — 0 minutes from midnight
+            end: 1440, // midnight next day — full 24 hours
+        },
+        description:
+            "Platform-wide working hours for service availability. start and end are minutes from midnight.",
+        category: "GENERAL" as const,
+        isEditable: true,
+    },
+    {
+        key: "working_hours_enforcement",
+        value: false, // false = 24hr mode, true = enforce working_hours window
+        description:
+            "Whether to enforce working_hours window on time slot generation. Set to false during testing for 24hr availability.",
+        category: "GENERAL" as const,
+        isEditable: true,
+    },
 ];
 
 /**

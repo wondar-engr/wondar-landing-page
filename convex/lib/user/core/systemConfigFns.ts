@@ -13,6 +13,8 @@ const USER_VISIBLE_CONFIG_KEYS = [
     "cancellation_policy",
     "booking_fee_refundable",
     "maintenance_mode",
+    "working_hours",
+    "working_hours_enforcement",
 ] as const;
 
 type UserVisibleKey = (typeof USER_VISIBLE_CONFIG_KEYS)[number];
