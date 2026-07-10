@@ -9,6 +9,7 @@ import {
     formatDate,
     formatTime,
 } from "@convex/utils/helpers/bookings";
+import { bookingEndToUtcMs, bookingStartToUtcMs } from "@convex/utils/time";
 
 // ==========================================
 // GET CREATIVE BOOKINGS
@@ -197,7 +198,7 @@ export const acceptBooking = mutation({
                     `👤 Client:     ${clientName}`,
                     `🛠 Service:    ${serviceName}`,
                     `📅 Date:       ${serviceDate}`,
-                    `🕐 Time:       ${timeWindow}`,
+                    `🕐 Time:       ${timeWindow} (${booking.clientTimezone ?? "UTC"})`,
                     ``,
                     `💰 Payment Due`,
                     `   Upfront:    ${upfrontFormatted}`,
@@ -307,7 +308,7 @@ export const declineBooking = mutation({
                     `👤 Client:     ${clientName}`,
                     `🛠 Service:    ${serviceName}`,
                     `📅 Date:       ${serviceDate}`,
-                    `🕐 Time:       ${timeWindow}`,
+                    `🕐 Time:       ${timeWindow} (${booking.clientTimezone ?? "UTC"})`,
                     ``,
                     `📝 Reason: ${reason}`,
                     `ℹ️ No payment was taken.`,
@@ -348,9 +349,17 @@ export const startService = mutation({
 
         // Time window check — creative can only start within the booking window
         const now = Date.now();
-        const bookingStartMs =
-            booking.dateBooked + booking.startTime * 60 * 1000;
-        const bookingEndMs = booking.dateBooked + booking.endTime * 60 * 1000;
+        const clientTimezone = booking.clientTimezone ?? "UTC";
+        const bookingStartMs = bookingStartToUtcMs(
+            booking.dateBooked,
+            booking.startTime,
+            clientTimezone,
+        );
+        const bookingEndMs = bookingEndToUtcMs(
+            booking.dateBooked,
+            booking.endTime,
+            clientTimezone,
+        );
         const oneHourBefore = bookingStartMs - 60 * 60 * 1000;
 
         if (now < oneHourBefore) {
@@ -415,7 +424,7 @@ export const startService = mutation({
                     `👤 Client:     ${clientName}`,
                     `🛠 Service:    ${serviceName}`,
                     `📅 Date:       ${serviceDate}`,
-                    `🕐 Time:       ${timeWindow}`,
+                    `🕐 Time:       ${timeWindow} (${booking.clientTimezone ?? "UTC"})`,
                     ``,
                     `⏱ Started at: ${new Date(now).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`,
                     `💰 Remaining due after completion: ${formatCents(booking.remainingDueAmount)}`,
@@ -519,7 +528,7 @@ export const completeService = mutation({
                     `👤 Client:     ${clientName}`,
                     `🛠 Service:    ${serviceName}`,
                     `📅 Date:       ${serviceDate}`,
-                    `🕐 Time:       ${timeWindow}`,
+                    `🕐 Time:       ${timeWindow} (${booking.clientTimezone ?? "UTC"})`,
                     ``,
                     `📎 Completion Docs: ${docsCount} file${docsCount !== 1 ? "s" : ""} uploaded`,
                     `💰 Final Payment Due: ${formatCents(booking.remainingDueAmount)}`,
@@ -615,7 +624,7 @@ export const cancelBooking = mutation({
                     `👤 Client:     ${clientName}`,
                     `🛠 Service:    ${serviceName}`,
                     `📅 Date:       ${serviceDate}`,
-                    `🕐 Time:       ${timeWindow}`,
+                    `🕐 Time:       ${timeWindow} (${booking.clientTimezone ?? "UTC"})`,
                     ``,
                     `📝 Reason: ${reason}`,
                     `💰 Payment Phase: ${booking.paymentPhase}`,

@@ -3,6 +3,13 @@ import { internalMutation } from "../_generated/server";
 import { internal } from "@convex/_generated/api";
 import { MutationCtx } from "../_generated/server";
 import { Id } from "@convex/_generated/dataModel";
+import {
+    bookingStartToUtcMs,
+    bookingEndToUtcMs,
+    formatMinutes,
+    formatBookingDate,
+    formatBookingTimeWindow,
+} from "@convex/utils/time";
 
 const GRACE_CREATIVE_NO_SHOW_MS = 30 * 60 * 1000;
 const GRACE_AUTO_COMPLETE_MS = 60 * 60 * 1000;
@@ -34,6 +41,7 @@ async function getBookingContext(
         dateBooked: number;
         startTime: number;
         endTime: number;
+        clientTimezone: string;
     },
 ) {
     const [clientProfile, creativeProfile, service] = await Promise.all([
@@ -58,12 +66,13 @@ async function getBookingContext(
 
     const serviceName = service?.name ?? "Unknown Service";
 
-    const serviceDate = new Date(booking.dateBooked).toLocaleDateString(
-        "en-US",
-        { weekday: "short", year: "numeric", month: "short", day: "numeric" },
+    const clientTimezone = booking.clientTimezone ?? "UTC";
+    const serviceDate = formatBookingDate(booking.dateBooked);
+    const timeWindow = formatBookingTimeWindow(
+        booking.startTime,
+        booking.endTime,
+        clientTimezone,
     );
-
-    const timeWindow = `${formatTime(booking.startTime)} → ${formatTime(booking.endTime)}`;
 
     return {
         clientName,
@@ -93,11 +102,17 @@ export const processBookingLifecycle = internalMutation({
             .collect();
 
         for (const booking of activeBookings) {
-            const startMs = getServiceStartMs(
+            const clientTimezone = booking.clientTimezone ?? "UTC";
+            const startMs = bookingStartToUtcMs(
                 booking.dateBooked,
                 booking.startTime,
+                clientTimezone,
             );
-            const endMs = getServiceEndMs(booking.dateBooked, booking.endTime);
+            const endMs = bookingEndToUtcMs(
+                booking.dateBooked,
+                booking.endTime,
+                clientTimezone,
+            );
 
             // ── 1. PENDING expired ────────────────────────────────────
             if (booking.status === "PENDING" && now > startMs) {
