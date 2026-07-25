@@ -96,6 +96,7 @@ export const ServiceStatusUnion = v.union(
     v.literal("ACTIVE"), // Active
     v.literal("INACTIVE"), // Inactive
     v.literal("DRAFT"), // Draft (not published)
+    v.literal("SUSPENDED"), // Suspended (violated terms)
 );
 
 export const ServiceTravelOptionUnion = v.union(

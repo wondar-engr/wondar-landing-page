@@ -1,8 +1,9 @@
 import { v } from "convex/values";
 import { internalMutation, mutation } from "../../../_generated/server";
 import { BookingStatusUnion, DisputeOutcomeUnion } from "@convex/unions";
+import { requireAdminProfile } from "@convex/utils/helpers/auth";
 
-// ── Resolve dispute (called from action after Stripe refund) ──────
+// ── internalMutation — called from Stripe action, no auth ctx available
 export const resolveDispute = internalMutation({
     args: {
         bookingId: v.id("bookings"),
@@ -16,13 +17,11 @@ export const resolveDispute = internalMutation({
         const booking = await ctx.db.get(args.bookingId);
         if (!booking) throw new Error("Booking not found");
 
-        // Determine new booking status
         const newStatus =
             args.outcome === "CLIENT_FAVORED" || args.outcome === "SPLIT"
                 ? "REFUNDED"
                 : "COMPLETED";
 
-        // Update booking
         await ctx.db.patch(args.bookingId, {
             status: newStatus,
             disputeResolution: {
@@ -34,20 +33,20 @@ export const resolveDispute = internalMutation({
             updatedAt: Date.now(),
         });
 
-        // Write to bookingDisputes audit table
         const existing = await ctx.db
             .query("bookingDisputes")
             .withIndex("by_bookingId", q => q.eq("bookingId", args.bookingId))
             .first();
 
+        const resolution =
+            args.outcome === "CLIENT_FAVORED" || args.outcome === "SPLIT"
+                ? "REFUND_CLIENT"
+                : "RELEASE_CREATIVE";
+
         if (existing) {
             await ctx.db.patch(existing._id, {
                 status: "RESOLVED",
-                resolution:
-                    args.outcome === "CLIENT_FAVORED" ||
-                    args.outcome === "SPLIT"
-                        ? "REFUND_CLIENT"
-                        : "RELEASE_CREATIVE",
+                resolution,
                 resolvedBy: args.resolvedBy,
                 resolvedAt: Date.now(),
                 resolutionNote: args.resolutionNote,
@@ -69,11 +68,7 @@ export const resolveDispute = internalMutation({
                 creativeSubmittedAt:
                     booking.disputeSubmissions?.creative?.submittedAt,
                 status: "RESOLVED",
-                resolution:
-                    args.outcome === "CLIENT_FAVORED" ||
-                    args.outcome === "SPLIT"
-                        ? "REFUND_CLIENT"
-                        : "RELEASE_CREATIVE",
+                resolution,
                 resolvedBy: args.resolvedBy,
                 resolvedAt: Date.now(),
                 resolutionNote: args.resolutionNote,
@@ -84,7 +79,7 @@ export const resolveDispute = internalMutation({
     },
 });
 
-// ── Force update booking status ───────────────────────────────────
+// ── Admin-only mutations
 export const updateBookingStatus = mutation({
     args: {
         bookingId: v.id("bookings"),
@@ -92,10 +87,13 @@ export const updateBookingStatus = mutation({
         reason: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        await requireAdminProfile(ctx);
+
         await ctx.db.patch(args.bookingId, {
             status: args.status,
             updatedAt: Date.now(),
         });
+
         return { success: true };
     },
 });

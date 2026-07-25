@@ -505,6 +505,15 @@ export const completeService = mutation({
         const timeWindow = `${formatTime(booking.startTime)} → ${formatTime(booking.endTime)}`;
         const docsCount = jobCompletionDocs?.length ?? 0;
 
+        if (service) {
+            await ctx.db.patch(service._id, {
+                stats: {
+                    ...service.stats,
+                    timesCompleted: (service.stats?.timesCompleted || 0) + 1,
+                },
+            });
+        }
+
         await sendNotification(ctx, {
             userId: booking.clientId,
             title: "Service Completed! ⭐",
@@ -596,6 +605,15 @@ export const cancelBooking = mutation({
         const serviceName = service?.name ?? "Unknown Service";
         const serviceDate = formatDate(booking.dateBooked);
         const timeWindow = `${formatTime(booking.startTime)} → ${formatTime(booking.endTime)}`;
+
+        if (service) {
+            await ctx.db.patch(service._id, {
+                stats: {
+                    ...service.stats,
+                    timesCancelled: (service.stats?.timesCancelled || 0) + 1,
+                },
+            });
+        }
 
         await sendNotification(ctx, {
             userId: booking.clientId,

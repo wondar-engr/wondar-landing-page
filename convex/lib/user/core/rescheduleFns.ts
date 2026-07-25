@@ -265,6 +265,15 @@ export const respondRescheduleRequest = mutation({
                 rescheduleRequest: undefined,
                 updatedAt: Date.now(),
             });
+            const service = await ctx.db.get(booking.serviceId);
+            if (service) {
+                await ctx.db.patch(booking.serviceId, {
+                    stats: {
+                        ...service.stats,
+                        timesRescheduled: service.stats.timesRescheduled + 1,
+                    },
+                });
+            }
         } else {
             await ctx.db.patch(bookingId, {
                 rescheduleStatus: "REJECTED",

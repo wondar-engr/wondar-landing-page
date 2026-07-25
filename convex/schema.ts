@@ -267,6 +267,13 @@ const schema = defineSchema({
         // Status flags
         status: ServiceStatusUnion, // active/inactive
         deleteStatus: v.boolean(),
+        adminSuspension: v.optional(
+            v.object({
+                suspendedBy: v.string(), // admin userId
+                suspendedAt: v.number(), // timestamp
+                reason: v.string(),
+            }),
+        ),
 
         // Analytics (Kept here for easy sorting, e.g., "Most Ordered")
         stats: v.object({
@@ -423,7 +430,8 @@ const schema = defineSchema({
         .index("by_orderNo", ["orderNo"])
         .index("by_client", ["clientId"])
         .index("by_creative", ["creativeId"])
-        .index("by_status", ["status"]),
+        .index("by_status", ["status"])
+        .index("by_serviceId", ["serviceId"]),
     payments: defineTable({
         bookingId: v.id("bookings"),
         userId: v.string(), // Payer

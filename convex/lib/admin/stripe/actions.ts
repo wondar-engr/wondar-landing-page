@@ -1,12 +1,12 @@
 "use node";
 
 import { v } from "convex/values";
-import { action } from "../../../_generated/server";
+import { action, internalAction } from "../../../_generated/server";
 import { internal } from "../../../_generated/api";
 import { getStripe } from "../../stripe/index";
 import { DisputeOutcomeUnion } from "@convex/unions";
 
-export const issueStripeRefund = action({
+export const issueStripeRefund = internalAction({
     args: {
         bookingId: v.id("bookings"),
         amount: v.number(),
@@ -59,7 +59,7 @@ export const issueStripeRefund = action({
         }
         // Write resolution
         await ctx.runMutation(
-            internal.lib.admin.booking.mutations.resolveDispute,
+            internal.lib.admin.bookings.mutations.resolveDispute,
             {
                 bookingId: args.bookingId,
                 outcome: args.outcome,
@@ -102,5 +102,30 @@ export const issueStripeRefund = action({
         );
 
         return { success: true, refundId };
+    },
+});
+
+export const issueRefundAction = action({
+    args: {
+        bookingId: v.id("bookings"),
+        amount: v.number(),
+        outcome: DisputeOutcomeUnion,
+        resolutionNote: v.string(),
+        resolvedBy: v.string(),
+        splitPercent: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        // Admin check
+        const profile = await ctx.runQuery(
+            internal.lib.internalQueries.auth.getAdminProfile,
+        );
+        if (!profile) throw new Error("Unauthorized");
+
+        await ctx.runAction(
+            internal.lib.admin.stripe.actions.issueStripeRefund,
+            args,
+        );
+
+        return true;
     },
 });

@@ -1,9 +1,9 @@
 import { v } from "convex/values";
-import { query } from "../../..//_generated/server";
+import { query } from "../../../_generated/server";
 import { BookingStatusUnion } from "@convex/unions";
 import { enrichBooking } from "@convex/utils/helpers/bookings";
+import { requireAdminProfile } from "@convex/utils/helpers/auth";
 
-// ── All bookings — paginated + filterable ─────────────────────────
 export const getAllBookings = query({
     args: {
         status: v.optional(BookingStatusUnion),
@@ -11,6 +11,8 @@ export const getAllBookings = query({
         limit: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
+        await requireAdminProfile(ctx);
+
         const limit = args.limit ?? 50;
         const status = args.status ?? "ALL";
 
@@ -26,7 +28,6 @@ export const getAllBookings = query({
             bookings = await ctx.db.query("bookings").order("desc").take(limit);
         }
 
-        // Search filter (orderNo)
         if (args.search) {
             const search = args.search.toLowerCase();
             bookings = bookings.filter(b =>
@@ -38,16 +39,16 @@ export const getAllBookings = query({
     },
 });
 
-// ── Single booking — full detail ──────────────────────────────────
 export const getBookingById = query({
     args: { bookingId: v.id("bookings") },
     handler: async (ctx, args) => {
+        await requireAdminProfile(ctx);
+
         const booking = await ctx.db.get(args.bookingId);
         if (!booking) return null;
 
         const enriched = await enrichBooking(ctx, booking);
 
-        // Fetch dispute record if exists
         const dispute = await ctx.db
             .query("bookingDisputes")
             .withIndex("by_bookingId", q => q.eq("bookingId", args.bookingId))
@@ -57,10 +58,11 @@ export const getBookingById = query({
     },
 });
 
-// ── Dispute bookings only ─────────────────────────────────────────
 export const getDisputeBookings = query({
     args: {},
     handler: async ctx => {
+        await requireAdminProfile(ctx);
+
         const bookings = await ctx.db
             .query("bookings")
             .withIndex("by_status", q => q.eq("status", "DISPUTE"))
@@ -71,10 +73,11 @@ export const getDisputeBookings = query({
     },
 });
 
-// ── Stats ─────────────────────────────────────────────────────────
 export const getBookingStats = query({
     args: {},
     handler: async ctx => {
+        await requireAdminProfile(ctx);
+
         const all = await ctx.db.query("bookings").collect();
 
         const counts = {

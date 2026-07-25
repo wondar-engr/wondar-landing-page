@@ -177,6 +177,15 @@ export const createBooking = mutation({
         const serviceDate = formatDate(args.dateBooked);
         const timeWindow = `${formatTime(args.startTime)} → ${formatTime(endTime)}`;
 
+        if (service) {
+            await ctx.db.patch(service._id, {
+                stats: {
+                    ...service.stats,
+                    timesOrdered: (service.stats?.timesOrdered || 0) + 1,
+                },
+            });
+        }
+
         // Notify creative
         await sendNotification(ctx, {
             userId: args.creativeId,
@@ -459,6 +468,14 @@ export const cancelBooking = mutation({
         const serviceDate = formatDate(booking.dateBooked);
         const timeWindow = `${formatTime(booking.startTime)} → ${formatTime(booking.endTime)}`;
 
+        if (service) {
+            await ctx.db.patch(booking.serviceId, {
+                stats: {
+                    ...service.stats,
+                    timesCancelled: service.stats.timesCancelled + 1,
+                },
+            });
+        }
         await sendNotification(ctx, {
             userId: booking.creativeId,
             title: "Booking Cancelled",
