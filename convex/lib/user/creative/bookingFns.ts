@@ -10,6 +10,8 @@ import {
     formatTime,
 } from "@convex/utils/helpers/bookings";
 import { bookingEndToUtcMs, bookingStartToUtcMs } from "@convex/utils/time";
+import { requireAuthUserId } from "@convex/utils/helpers/auth";
+import { checkAndFlagCancellations } from "@convex/utils/helpers/cancellations";
 
 // ==========================================
 // GET CREATIVE BOOKINGS
@@ -517,8 +519,8 @@ export const completeService = mutation({
         await sendNotification(ctx, {
             userId: booking.clientId,
             title: "Service Completed! ⭐",
-            body: "How was your experience? Leave a review!",
-            type: "REVIEW",
+            body: `${creativeName} has marked your service as complete. Please make your final payment to complete the booking. How was your experience? Leave a review!`,
+            type: "BOOKING",
             meta: { screen: "booking_review", id: bookingId },
             metaUser: creativeId,
         });
@@ -580,6 +582,13 @@ export const cancelBooking = mutation({
             cancel: { by: creativeId, reason, date: Date.now() },
             updatedAt: Date.now(),
         });
+
+        await checkAndFlagCancellations(
+            ctx,
+            creativeId,
+            "CREATIVE",
+            booking.orderNo,
+        );
 
         // ── Fetch context ─────────────────────────────────────────
         const [creativeProfile, clientProfile, service] = await Promise.all([
@@ -657,5 +666,53 @@ export const cancelBooking = mutation({
         );
 
         return { success: true, status: "CANCELLED", reason };
+    },
+});
+
+// ==========================================
+// UPDATE JOB COMPLETION DOCS (Creative side)
+// ==========================================
+
+export const updateJobCompletionDocs = mutation({
+    args: {
+        bookingId: v.id("bookings"),
+        docs: v.array(
+            v.object({
+                url: v.string(),
+                type: v.union(
+                    v.literal("PHOTO"),
+                    v.literal("VIDEO"),
+                    v.literal("DOCUMENT"),
+                ),
+            }),
+        ),
+    },
+    handler: async (ctx, args) => {
+        const userId = await requireAuthUserId(ctx);
+        const booking = await ctx.db.get(args.bookingId);
+        if (!booking) throw new Error("Booking not found");
+        if (booking.creativeId !== userId) throw new Error("Unauthorized");
+        if (
+            booking.status !== "COMPLETED" &&
+            booking.status !== "IN_PROGRESS"
+        ) {
+            throw new Error("Cannot update docs at this stage");
+        }
+
+        await ctx.db.patch(args.bookingId, {
+            jobCompletionDocs: args.docs,
+            updatedAt: Date.now(),
+        });
+
+        await sendNotification(ctx, {
+            userId: booking.clientId,
+            title: "Job Completion Docs Updated",
+            body: `${booking.creativeId} has updated the job completion documents. Please review them.`,
+            type: "BOOKING",
+            meta: { screen: "booking_detail", id: args.bookingId },
+            metaUser: userId,
+        });
+
+        return { success: true };
     },
 });

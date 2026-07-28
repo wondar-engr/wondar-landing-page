@@ -47,10 +47,10 @@ export const sendTelegramNotification = internalAction({
             }
 
             const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TG_BOT_KEY}`;
-            await axios.post(`${TELEGRAM_API}/sendMessage`, {
-                chat_id: chatId,
-                text: `${args.text}\n\n🕐 ${new Date().toUTCString()}`,
-            });
+            // await axios.post(`${TELEGRAM_API}/sendMessage`, {
+            //     chat_id: chatId,
+            //     text: `${args.text}\n\n🕐 ${new Date().toUTCString()}`,
+            // });
             return true;
         } catch (err) {
             console.log(

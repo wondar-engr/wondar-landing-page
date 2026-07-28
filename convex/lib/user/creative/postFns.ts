@@ -2,6 +2,8 @@ import { mutation, query } from "../../../_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "../../../auth";
 import { paginationOptsValidator } from "convex/server";
+import { internal } from "@convex/_generated/api";
+import { sendNotification } from "@convex/lib/notifications";
 
 export const createPost = mutation({
     args: {
@@ -34,6 +36,67 @@ export const createPost = mutation({
             stats: { views: 0, likes: 0 },
             createdAt: Date.now(),
         });
+
+        // After postId is created, fetch creative profile for notification copy
+        const creativeProfile = await ctx.db
+            .query("profiles")
+            .withIndex("by_userId", q => q.eq("userId", creativeId))
+            .first();
+
+        const creativeDisplayName =
+            (
+                await ctx.db
+                    .query("creativeProfiles")
+                    .withIndex("by_userId", q => q.eq("userId", creativeId))
+                    .first()
+            )?.businessName ||
+            `${creativeProfile?.firstName ?? ""} ${creativeProfile?.lastName ?? ""}`.trim() ||
+            "A creative you support";
+
+        // Get all supporters
+        const supporters = await ctx.db
+            .query("supports")
+            .withIndex("by_supported", q => q.eq("supportedId", creativeId))
+            .collect();
+
+        // Send in-app + push to each supporter
+        await Promise.all(
+            supporters.map(s =>
+                sendNotification(ctx, {
+                    userId: s.supporterId,
+                    title: `${creativeDisplayName} posted something new`,
+                    body: args.caption
+                        ? args.caption.slice(0, 100)
+                        : args.media[0].type === "VIDEO"
+                          ? "Posted a new video"
+                          : "Posted a new photo",
+                    type: "GENERAL",
+                    meta: { screen: "post_detail", id: postId },
+                }),
+            ),
+        );
+
+        // Telegram alert for admin awareness
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendTelegramNotification,
+            {
+                text: [
+                    `📸 NEW POST`,
+                    ``,
+                    `🎨 Creative: ${creativeDisplayName}`,
+                    `👥 Notified: ${supporters.length} supporter${supporters.length !== 1 ? "s" : ""}`,
+                    `🔍 Visibility: ${args.visibility}`,
+                    args.caption
+                        ? `💬 Caption: ${args.caption.slice(0, 80)}`
+                        : null,
+                    `🆔 Post ID: ${postId}`,
+                ]
+                    .filter(Boolean)
+                    .join("\n"),
+                category: "GENERAL",
+            },
+        );
 
         return { postId };
     },

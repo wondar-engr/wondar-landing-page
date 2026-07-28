@@ -83,6 +83,14 @@ const schema = defineSchema({
         // LAST KNOWN (For "Active Now" indicators, not necessarily map pins)
         lastSeen: v.optional(v.number()), // Timestamp
         tag: v.optional(v.string()), // @handle eg. "lexdgr8est" (no @ stored)
+        cancellationFlag: v.optional(
+            v.object({
+                flaggedAt: v.number(),
+                count: v.number(),
+                lastCancelledAt: v.number(),
+                role: v.union(v.literal("CLIENT"), v.literal("CREATIVE")),
+            }),
+        ),
     })
         .index("by_userId", ["userId"])
         .index("by_email", ["email"])

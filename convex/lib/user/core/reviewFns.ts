@@ -1,6 +1,8 @@
 import { mutation, query } from "../../../_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "../../../auth";
+import { sendNotification } from "@convex/lib/notifications";
+import { internal } from "@convex/_generated/api";
 
 export const submitReview = mutation({
     args: {
@@ -78,6 +80,62 @@ export const submitReview = mutation({
                 });
             }
         }
+
+        // Fetch author name for notification copy
+        const authorProfile = await ctx.db
+            .query("profiles")
+            .withIndex("by_userId", q => q.eq("userId", authorId))
+            .first();
+
+        const authorName =
+            `${authorProfile?.firstName ?? ""} ${authorProfile?.lastName ?? ""}`.trim() ||
+            "Someone";
+
+        const targetProfile = await ctx.db
+            .query("profiles")
+            .withIndex("by_userId", q => q.eq("userId", targetId))
+            .first();
+
+        const targetName =
+            `${targetProfile?.firstName ?? ""} ${targetProfile?.lastName ?? ""}`.trim() ||
+            "User";
+
+        const stars = "⭐".repeat(rating);
+
+        // ── In-app notification to the person being reviewed ─────────────
+        await sendNotification(ctx, {
+            userId: targetId,
+            title: isClient
+                ? `New review from ${authorName}`
+                : `${authorName} left you a review`,
+            body: content?.trim()
+                ? `${stars} "${content.trim().slice(0, 80)}"`
+                : `${stars} — ${rating}/5 stars`,
+            type: "REVIEW",
+            meta: { screen: "booking_detail", id: bookingId },
+        });
+
+        // ── Telegram ──────────────────────────────────────────────────────
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendTelegramNotification,
+            {
+                text: [
+                    `⭐ NEW REVIEW`,
+                    ``,
+                    `✍️ From:    ${authorName} (${role})`,
+                    `🎯 To:      ${targetName}`,
+                    `📋 Booking: #${booking.orderNo}`,
+                    `⭐ Rating:  ${rating}/5 ${stars}`,
+                    content?.trim()
+                        ? `💬 Review:  "${content.trim().slice(0, 120)}"`
+                        : null,
+                ]
+                    .filter(Boolean)
+                    .join("\n"),
+                category: "GENERAL",
+            },
+        );
 
         return { success: true };
     },

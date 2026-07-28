@@ -5,7 +5,13 @@ import {
     isBookingToday,
     utcMidnightToday,
     formatBookingDate,
+    bookingStartToUtcMs,
+    localStartOfDay,
+    localStartOfWeek,
+    localStartOfMonth,
+    getDayInZone,
 } from "@convex/utils/time";
+import { v } from "convex/values";
 
 function calculateCreativeEarning(
     totalFee: number,
@@ -140,75 +146,48 @@ export const getChecklistStatus = query({
 
 // ── Quick stats ───────────────────────────────────────────────────
 export const getQuickStats = query({
-    args: {},
-    handler: async ctx => {
+    args: {
+        timezone: v.string(), // IANA timezone from device
+    },
+    handler: async (ctx, args) => {
         const userId = await getAuthUserId(ctx);
         if (!userId) return null;
 
+        // ── Time boundaries in creative's local timezone ──────────
         const now = Date.now();
-        const startOfToday = new Date();
-        startOfToday.setHours(0, 0, 0, 0);
-        const endOfToday = new Date();
-        endOfToday.setHours(23, 59, 59, 999);
 
-        const startOfWeek = new Date();
-        startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-        startOfWeek.setHours(0, 0, 0, 0);
+        const startOfToday = localStartOfDay(args.timezone);
+        const startOfWeek = localStartOfWeek(args.timezone);
+        const startOfMonth = localStartOfMonth(args.timezone);
 
-        const startOfMonth = new Date();
-        startOfMonth.setDate(1);
-        startOfMonth.setHours(0, 0, 0, 0);
+        const [transactions, allBookings, reviews] = await Promise.all([
+            ctx.db
+                .query("transactions")
+                .withIndex("by_creativeId", q => q.eq("creativeId", userId))
+                .filter(q => q.eq(q.field("status"), "SUCCEEDED"))
+                .collect(),
+            ctx.db
+                .query("bookings")
+                .withIndex("by_creative", q => q.eq("creativeId", userId))
+                .collect(),
+            ctx.db
+                .query("reviews")
+                .withIndex("by_target", q => q.eq("targetId", userId))
+                .collect(),
+        ]);
 
-        const allBookings = await ctx.db
-            .query("bookings")
-            .withIndex("by_creative", q => q.eq("creativeId", userId))
-            .collect();
+        const earnedAfter = (cutoff: number) =>
+            transactions
+                .filter(t => (t.completedAt ?? t._creationTime) >= cutoff)
+                .reduce((sum, t) => sum + t.creativeEarnings, 0);
 
-        const earning = (b: CreativeEarningCalcType) =>
-            calculateCreativeEarning(
-                b.proposedTotal,
-                b.platformClientFeeAmount,
-                b.platformCreativeFeeAmount,
-            );
-
-        const completedToday = allBookings.filter(
-            b =>
-                b.status === "COMPLETED" &&
-                b.dateBooked >= startOfToday.getTime() &&
-                b.dateBooked <= endOfToday.getTime(),
-        );
-        const completedThisWeek = allBookings.filter(
-            b =>
-                b.status === "COMPLETED" &&
-                b.dateBooked >= startOfWeek.getTime(),
-        );
-        const completedThisMonth = allBookings.filter(
-            b =>
-                b.status === "COMPLETED" &&
-                b.dateBooked >= startOfMonth.getTime(),
-        );
-
-        const todayBookings = allBookings.filter(
-            b =>
-                b.dateBooked >= startOfToday.getTime() &&
-                b.dateBooked <= endOfToday.getTime() &&
-                b.status !== "CANCELLED",
-        );
-        const weekBookings = allBookings.filter(
-            b =>
-                b.dateBooked >= startOfWeek.getTime() &&
-                b.status !== "CANCELLED",
-        );
-        const monthBookings = allBookings.filter(
-            b =>
-                b.dateBooked >= startOfMonth.getTime() &&
-                b.status !== "CANCELLED",
-        );
-
-        const reviews = await ctx.db
-            .query("reviews")
-            .withIndex("by_target", q => q.eq("targetId", userId))
-            .collect();
+        const countAfter = (cutoff: number) =>
+            allBookings.filter(
+                b =>
+                    b._creationTime >= cutoff &&
+                    b.status !== "CANCELLED" &&
+                    b.status !== "REFUNDED",
+            ).length;
 
         const averageRating =
             reviews.length > 0
@@ -217,22 +196,16 @@ export const getQuickStats = query({
 
         return {
             today: {
-                earnings: Math.round(
-                    completedToday.reduce((s, b) => s + earning(b), 0),
-                ),
-                bookings: todayBookings.length,
+                earnings: earnedAfter(startOfToday),
+                bookings: countAfter(startOfToday),
             },
             week: {
-                earnings: Math.round(
-                    completedThisWeek.reduce((s, b) => s + earning(b), 0),
-                ),
-                bookings: weekBookings.length,
+                earnings: earnedAfter(startOfWeek),
+                bookings: countAfter(startOfWeek),
             },
             month: {
-                earnings: Math.round(
-                    completedThisMonth.reduce((s, b) => s + earning(b), 0),
-                ),
-                bookings: monthBookings.length,
+                earnings: earnedAfter(startOfMonth),
+                bookings: countAfter(startOfMonth),
             },
             rating: Math.round(averageRating * 10) / 10,
             totalReviews: reviews.length,
@@ -307,36 +280,23 @@ export const getUpcomingBookings = query({
 
 // ── Earnings snapshot — weekly chart ─────────────────────────────
 export const getEarningsSnapshot = query({
-    args: {},
-    handler: async ctx => {
+    args: {
+        timezone: v.string(),
+    },
+    handler: async (ctx, args) => {
         const userId = await getAuthUserId(ctx);
         if (!userId) return null;
 
-        const startOfWeek = new Date();
-        startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-        startOfWeek.setHours(0, 0, 0, 0);
+        const now = Date.now();
+        const startOfThisWeek = localStartOfWeek(args.timezone);
+        const startOfLastWeek = startOfThisWeek - 7 * 24 * 60 * 60 * 1000;
 
-        const startOfLastWeek = new Date(startOfWeek);
-        startOfLastWeek.setDate(startOfLastWeek.getDate() - 7);
-
-        const allBookings = await ctx.db
-            .query("bookings")
-            .withIndex("by_creative", q => q.eq("creativeId", userId))
-            .filter(q =>
-                q.or(
-                    q.eq(q.field("status"), "COMPLETED"),
-                    q.eq(q.field("status"), "PAID"),
-                    q.eq(q.field("status"), "DISPUTE"),
-                ),
-            )
+        // ── Pull from transactions — already net of platform fee ──
+        const transactions = await ctx.db
+            .query("transactions")
+            .withIndex("by_creativeId", q => q.eq("creativeId", userId))
+            .filter(q => q.eq(q.field("status"), "SUCCEEDED"))
             .collect();
-
-        const earning = (b: CreativeEarningCalcType) =>
-            calculateCreativeEarning(
-                b.proposedTotal,
-                b.platformClientFeeAmount,
-                b.platformCreativeFeeAmount,
-            );
 
         const weeklyMap: Record<number, number> = {
             0: 0,
@@ -351,13 +311,15 @@ export const getEarningsSnapshot = query({
         let thisWeekTotal = 0;
         let lastWeekTotal = 0;
 
-        allBookings.forEach(b => {
-            if (b.dateBooked >= startOfWeek.getTime()) {
-                const day = new Date(b.dateBooked).getDay();
-                weeklyMap[day] += earning(b);
-                thisWeekTotal += earning(b);
-            } else if (b.dateBooked >= startOfLastWeek.getTime()) {
-                lastWeekTotal += earning(b);
+        transactions.forEach(t => {
+            const ts = t.completedAt ?? t._creationTime;
+
+            if (ts >= startOfThisWeek) {
+                const day = getDayInZone(ts, args.timezone);
+                weeklyMap[day] += t.creativeEarnings;
+                thisWeekTotal += t.creativeEarnings;
+            } else if (ts >= startOfLastWeek) {
+                lastWeekTotal += t.creativeEarnings;
             }
         });
 
@@ -448,6 +410,126 @@ export const getTabBadges = query({
             pendingBookings: pendingBookings.length,
             unreadNotifications: unreadNotifications.length,
             unreadMessages,
+        };
+    },
+});
+
+// ── Urgent bookings — pending, in-progress, dispute, paid today ───
+export const getUrgentBookings = query({
+    args: {},
+    handler: async ctx => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) return null;
+
+        const bookings = await ctx.db
+            .query("bookings")
+            .withIndex("by_creative", q => q.eq("creativeId", userId))
+            .filter(q =>
+                q.or(
+                    q.eq(q.field("status"), "PENDING"),
+                    q.eq(q.field("status"), "IN_PROGRESS"),
+                    q.eq(q.field("status"), "DISPUTE"),
+                    q.eq(q.field("status"), "PAID"),
+                    q.eq(q.field("status"), "COMPLETED"),
+                ),
+            )
+            .order("asc")
+            .collect();
+
+        const enriched = await Promise.all(
+            bookings.map(async b => {
+                const [clientProfile, service] = await Promise.all([
+                    ctx.db
+                        .query("profiles")
+                        .withIndex("by_userId", q => q.eq("userId", b.clientId))
+                        .first(),
+                    ctx.db.get(b.serviceId),
+                ]);
+
+                const clientName = clientProfile
+                    ? `${clientProfile.firstName ?? ""} ${clientProfile.lastName ?? ""}`.trim() ||
+                      "Client"
+                    : "Client";
+
+                // ── Dispute state resolution ──────────────────────
+                let disputeState:
+                    | "submit_statement"
+                    | "awaiting_client"
+                    | "awaiting_resolution"
+                    | null = null;
+
+                if (b.status === "DISPUTE" && !b.disputeResolution) {
+                    const creativeSubmitted = !!b.disputeSubmissions?.creative;
+                    const clientSubmitted = !!b.disputeSubmissions?.client;
+
+                    if (!creativeSubmitted) {
+                        disputeState = "submit_statement";
+                    } else if (!clientSubmitted) {
+                        disputeState = "awaiting_client";
+                    } else {
+                        disputeState = "awaiting_resolution";
+                    }
+                }
+
+                // ── Filter PAID — only show if today ─────────────
+                if (b.status === "PAID") {
+                    console.log(
+                        "Checking if booking is today:",
+                        b._id,
+                        b.dateBooked,
+                        b.clientTimezone,
+                    );
+                    const startUtcMs = bookingStartToUtcMs(
+                        b.dateBooked,
+                        b.startTime,
+                        b.clientTimezone ?? "UTC",
+                    );
+                    const bookingIsToday = isBookingToday(
+                        startUtcMs,
+                        b.clientTimezone ?? "UTC",
+                    );
+                    if (!bookingIsToday) return null;
+                }
+
+                if (
+                    b.status === "COMPLETED" &&
+                    b.paymentPhase !== "FINAL_PENDING"
+                ) {
+                    return null;
+                }
+
+                return {
+                    id: b._id,
+                    status: b.status,
+                    orderNo: b.orderNo,
+                    clientName,
+                    clientAvatar: clientProfile?.avatar ?? null,
+                    serviceName: service?.name ?? "Service",
+                    dateBooked: b.dateBooked,
+                    startTime: b.startTime,
+                    endTime: b.endTime,
+                    clientTimezone: b.clientTimezone ?? "UTC",
+                    disputeState,
+                    disputeOpenedBy: b.disputeOpenedBy ?? null,
+                    createdAt: b._creationTime,
+                    paymentPhase: b.paymentPhase,
+                };
+            }),
+        );
+
+        const filtered = enriched.filter(Boolean);
+
+        return {
+            pending: filtered.filter(b => b!.status === "PENDING"),
+            inProgress: filtered.filter(b => b!.status === "IN_PROGRESS"),
+            paidToday: filtered.filter(b => b!.status === "PAID"),
+            disputes: filtered.filter(b => b!.status === "DISPUTE"),
+            awaitingFinalPayment: filtered.filter(
+                // ← add
+                b =>
+                    b!.status === "COMPLETED" &&
+                    b!.paymentPhase === "FINAL_PENDING",
+            ),
         };
     },
 });

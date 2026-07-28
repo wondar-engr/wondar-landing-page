@@ -9,6 +9,7 @@ import {
     formatTime,
 } from "@convex/utils/helpers/bookings";
 import { internal } from "@convex/_generated/api";
+import { checkAndFlagCancellations } from "@convex/utils/helpers/cancellations";
 
 // ==========================================
 // HELPERS
@@ -442,6 +443,13 @@ export const cancelBooking = mutation({
             cancel: { by: clientId, reason, date: Date.now() },
             updatedAt: Date.now(),
         });
+
+        await checkAndFlagCancellations(
+            ctx,
+            clientId,
+            "CLIENT",
+            booking.orderNo,
+        );
 
         // ── Fetch context ─────────────────────────────────────────
         const [clientProfile, creativeProfile, service] = await Promise.all([

@@ -180,6 +180,14 @@ const DEFAULT_CONFIG: Array<{
         isEditable: true,
     },
     {
+        key: "maintenance_full",
+        value: false,
+        description:
+            "Enable full app lockout — shows maintenance screen to all users",
+        category: "GENERAL" as const,
+        isEditable: true,
+    },
+    {
         key: "new_user_promo_enabled",
         value: false,
         description: "Enable promotional discount for new users",

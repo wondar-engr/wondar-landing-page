@@ -203,3 +203,85 @@ export function utcMidnightToday(): number {
     const now = new Date();
     return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
 }
+
+// ─────────────────────────────────────────────────────────────────
+// LOCAL TIME BOUNDARIES (for stats queries)
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * Get the start of today as a UTC timestamp, in a given timezone.
+ * e.g. if it's 3am WAT on Jul 26, returns Jul 26 00:00:00 WAT as UTC ms.
+ */
+export function localStartOfDay(timezone: string): number {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).formatToParts(new Date());
+
+    const y = parseInt(parts.find(p => p.type === "year")!.value);
+    const m = parseInt(parts.find(p => p.type === "month")!.value) - 1;
+    const d = parseInt(parts.find(p => p.type === "day")!.value);
+
+    // Build local midnight as UTC
+    const localMidnightStr = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}T00:00:00`;
+    const offsetMs = getTimezoneOffsetMs(Date.now(), timezone);
+    return new Date(localMidnightStr).getTime() - offsetMs;
+}
+
+/**
+ * Get the start of the current week (Sunday) as a UTC timestamp,
+ * in a given timezone.
+ */
+export function localStartOfWeek(timezone: string): number {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        weekday: "short",
+    }).formatToParts(new Date());
+
+    const y = parseInt(parts.find(p => p.type === "year")!.value);
+    const m = parseInt(parts.find(p => p.type === "month")!.value) - 1;
+    const d = parseInt(parts.find(p => p.type === "day")!.value);
+    const weekday = parts.find(p => p.type === "weekday")!.value;
+
+    const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const dayIndex = WEEKDAYS.indexOf(weekday);
+    const sundayDay = d - dayIndex;
+
+    const localSundayStr = `${y}-${String(m + 1).padStart(2, "0")}-${String(sundayDay).padStart(2, "0")}T00:00:00`;
+    const offsetMs = getTimezoneOffsetMs(Date.now(), timezone);
+    return new Date(localSundayStr).getTime() - offsetMs;
+}
+
+/**
+ * Get the start of the current month as a UTC timestamp,
+ * in a given timezone.
+ */
+export function localStartOfMonth(timezone: string): number {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: timezone,
+        year: "numeric",
+        month: "2-digit",
+    }).formatToParts(new Date());
+
+    const y = parseInt(parts.find(p => p.type === "year")!.value);
+    const m = parseInt(parts.find(p => p.type === "month")!.value) - 1;
+
+    const localMonthStr = `${y}-${String(m + 1).padStart(2, "0")}-01T00:00:00`;
+    const offsetMs = getTimezoneOffsetMs(Date.now(), timezone);
+    return new Date(localMonthStr).getTime() - offsetMs;
+}
+
+// ── Helper: get day index in creative's timezone ──────────
+export function getDayInZone(utcMs: number, timezone: string): number {
+    const dayStr = new Intl.DateTimeFormat("en-US", {
+        timeZone: timezone,
+        weekday: "short",
+    }).format(new Date(utcMs));
+
+    return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(dayStr);
+}
