@@ -769,7 +769,8 @@ const schema = defineSchema({
     })
         .index("by_booking", ["bookingId"])
         .index("by_participant1", ["unreadCounts.participant1.userId"])
-        .index("by_participant2", ["unreadCounts.participant2.userId"]),
+        .index("by_participant2", ["unreadCounts.participant2.userId"])
+        .index("by_participantIds", ["participantIds"]),
 
     messages: defineTable({
         conversationId: v.id("conversations"),

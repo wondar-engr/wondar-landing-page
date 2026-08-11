@@ -404,7 +404,25 @@ export const getTabBadges = query({
             .collect();
 
         // TODO: Unread messages count (when messaging is implemented)
-        const unreadMessages = 0;
+        const [convAsP1, convAsP2] = await Promise.all([
+            ctx.db
+                .query("conversations")
+                .withIndex("by_participant1", q =>
+                    q.eq("unreadCounts.participant1.userId", userId),
+                )
+                .collect(),
+            ctx.db
+                .query("conversations")
+                .withIndex("by_participant2", q =>
+                    q.eq("unreadCounts.participant2.userId", userId),
+                )
+                .collect(),
+        ]);
+
+        const unreadMessages = [
+            ...convAsP1.map(c => c.unreadCounts.participant1.count),
+            ...convAsP2.map(c => c.unreadCounts.participant2.count),
+        ].reduce((sum, n) => sum + n, 0);
 
         return {
             pendingBookings: pendingBookings.length,
@@ -473,12 +491,6 @@ export const getUrgentBookings = query({
 
                 // ── Filter PAID — only show if today ─────────────
                 if (b.status === "PAID") {
-                    console.log(
-                        "Checking if booking is today:",
-                        b._id,
-                        b.dateBooked,
-                        b.clientTimezone,
-                    );
                     const startUtcMs = bookingStartToUtcMs(
                         b.dateBooked,
                         b.startTime,

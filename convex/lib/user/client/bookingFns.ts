@@ -484,10 +484,22 @@ export const cancelBooking = mutation({
                 },
             });
         }
+
+        // ── Notify creative — more context ───────────────────────────────
         await sendNotification(ctx, {
             userId: booking.creativeId,
             title: "Booking Cancelled",
-            body: `${clientName} cancelled their booking.`,
+            body: `${clientName} cancelled their booking for ${serviceName} on ${serviceDate}.`,
+            type: "BOOKING",
+            meta: { screen: "booking_detail", id: bookingId },
+            metaUser: clientId,
+        });
+
+        // ── Notify client — confirmation ──────────────────────────────────
+        await sendNotification(ctx, {
+            userId: clientId,
+            title: "Booking Cancelled",
+            body: `Your booking for ${serviceName} on ${serviceDate} has been cancelled. Order #${booking.orderNo}.`,
             type: "BOOKING",
             meta: { screen: "booking_detail", id: bookingId },
             metaUser: clientId,

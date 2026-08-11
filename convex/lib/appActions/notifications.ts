@@ -1,14 +1,10 @@
 import { v } from "convex/values";
 import { internalAction } from "../../_generated/server";
 import axios from "axios";
+import { internal } from "@convex/_generated/api";
 
 export type TelegramCategory =
-    | "PAYMENTS"
-    | "WEBHOOKS"
-    | "DISPUTES"
-    | "ACCOUNTS"
-    | "BOOKINGS"
-    | "GENERAL"; // fallback — maps to existing TG_GROUP_CHAT_ID
+    "PAYMENTS" | "WEBHOOKS" | "DISPUTES" | "ACCOUNTS" | "BOOKINGS" | "GENERAL"; // fallback — maps to existing TG_GROUP_CHAT_ID
 
 const CATEGORY_CHAT_IDS: Record<TelegramCategory, string> = {
     PAYMENTS: "TG_PAYMENTS_CHAT_ID",
@@ -47,10 +43,10 @@ export const sendTelegramNotification = internalAction({
             }
 
             const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TG_BOT_KEY}`;
-            // await axios.post(`${TELEGRAM_API}/sendMessage`, {
-            //     chat_id: chatId,
-            //     text: `${args.text}\n\n🕐 ${new Date().toUTCString()}`,
-            // });
+            await axios.post(`${TELEGRAM_API}/sendMessage`, {
+                chat_id: chatId,
+                text: `${args.text}\n\n🕐 ${new Date().toUTCString()}`,
+            });
             return true;
         } catch (err) {
             console.log(
@@ -59,5 +55,50 @@ export const sendTelegramNotification = internalAction({
             );
             return false;
         }
+    },
+});
+
+export const sendMessageNotification = internalAction({
+    args: {
+        conversationId: v.id("conversations"),
+        senderId: v.string(),
+        otherUserId: v.string(),
+        preview: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const senderProfile = await ctx.runQuery(
+            internal.lib.internalQueries.profiles.getProfileByUserId,
+            { userId: args.senderId },
+        );
+
+        const senderName = senderProfile
+            ? `${senderProfile.firstName ?? ""} ${senderProfile.lastName ?? ""}`.trim()
+            : "Someone";
+
+        // Get push tokens directly
+        const userSettings = await ctx.runQuery(
+            internal.lib.internalQueries.settings.getUserSettings,
+            { userId: args.otherUserId },
+        );
+
+        if (!userSettings) return;
+
+        const activeTokens = userSettings.devices
+            .filter(d => d.isActive && d.pushToken)
+            .map(d => d.pushToken!);
+
+        if (activeTokens.length === 0) return;
+
+        await ctx.runAction(internal.push.sendPush, {
+            tokens: activeTokens,
+            title: senderName,
+            body: args.preview,
+            data: {
+                type: "MESSAGE",
+                screen: "conversation",
+                id: args.conversationId,
+                metaUser: args.senderId,
+            },
+        });
     },
 });

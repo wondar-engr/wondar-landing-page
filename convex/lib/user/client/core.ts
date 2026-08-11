@@ -69,7 +69,25 @@ export const getClientDrawerData = query({
         // Get unread messages count
         // TODO: Update when messaging is implemented
         // ==========================================
-        const unreadMessages = 0;
+        const [convAsP1, convAsP2] = await Promise.all([
+            ctx.db
+                .query("conversations")
+                .withIndex("by_participant1", q =>
+                    q.eq("unreadCounts.participant1.userId", userId),
+                )
+                .collect(),
+            ctx.db
+                .query("conversations")
+                .withIndex("by_participant2", q =>
+                    q.eq("unreadCounts.participant2.userId", userId),
+                )
+                .collect(),
+        ]);
+
+        const unreadMessages = [
+            ...convAsP1.map(c => c.unreadCounts.participant1.count),
+            ...convAsP2.map(c => c.unreadCounts.participant2.count),
+        ].reduce((sum, n) => sum + n, 0);
 
         return {
             // User info

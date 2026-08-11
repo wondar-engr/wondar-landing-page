@@ -703,11 +703,20 @@ export const updateJobCompletionDocs = mutation({
             jobCompletionDocs: args.docs,
             updatedAt: Date.now(),
         });
+        // ✅ Fetch creative name first
+        const creativeProfile = await ctx.db
+            .query("profiles")
+            .withIndex("by_userId", q => q.eq("userId", userId))
+            .first();
+
+        const creativeName = creativeProfile
+            ? `${creativeProfile.firstName ?? ""} ${creativeProfile.lastName ?? ""}`.trim()
+            : "Your creative";
 
         await sendNotification(ctx, {
             userId: booking.clientId,
             title: "Job Completion Docs Updated",
-            body: `${booking.creativeId} has updated the job completion documents. Please review them.`,
+            body: `${creativeName} has updated the job completion documents. Please review them.`,
             type: "BOOKING",
             meta: { screen: "booking_detail", id: args.bookingId },
             metaUser: userId,

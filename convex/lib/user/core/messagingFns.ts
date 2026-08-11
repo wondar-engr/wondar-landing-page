@@ -2,7 +2,7 @@ import { mutation, query } from "../../../_generated/server";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { getAuthUserId } from "../../../auth";
-import { sendPushOnly } from "../../notifications";
+import { internal } from "@convex/_generated/api";
 
 export const getOrCreateConversation = mutation({
     args: {
@@ -88,21 +88,21 @@ export const getMyConversations = query({
         const userId = await getAuthUserId(ctx);
         if (!userId) return { page: [], isDone: true, continueCursor: "" };
 
-        // Get as participant1
         const asP1 = await ctx.db
             .query("conversations")
             .withIndex("by_participant1", q =>
                 q.eq("unreadCounts.participant1.userId", userId),
             )
-            .collect();
+            .order("desc")
+            .take(100);
 
-        // Get as participant2
         const asP2 = await ctx.db
             .query("conversations")
             .withIndex("by_participant2", q =>
                 q.eq("unreadCounts.participant2.userId", userId),
             )
-            .collect();
+            .order("desc")
+            .take(100);
 
         const all = [...asP1, ...asP2].sort(
             (a, b) =>
@@ -110,9 +110,7 @@ export const getMyConversations = query({
                 (a.lastMessageAt ?? a._creationTime),
         );
 
-        // Manual pagination
         const numItems = paginationOpts.numItems ?? 20;
-        // Simple cursor — index into sorted array
         const startIndex = paginationOpts.cursor
             ? all.findIndex(c => c._id === paginationOpts.cursor) + 1
             : 0;
@@ -257,26 +255,17 @@ export const sendMessage = mutation({
             ? conv.unreadCounts.participant2.userId
             : conv.unreadCounts.participant1.userId;
 
-        const senderProfile = await ctx.db
-            .query("profiles")
-            .withIndex("by_userId", q => q.eq("userId", userId))
-            .first();
-
-        const senderName = senderProfile
-            ? `${senderProfile.firstName ?? ""} ${senderProfile.lastName ?? ""}`.trim()
-            : "Someone";
-
-        await sendPushOnly(ctx, {
-            userId: otherUserId,
-            title: senderName,
-            body: preview,
-            type: "MESSAGE",
-            meta: {
-                screen: "conversation",
-                id: conversationId,
+        // ✅ Fix — fire notification via scheduler, don't await profile fetch
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendMessageNotification,
+            {
+                conversationId,
+                senderId: userId,
+                otherUserId,
+                preview,
             },
-            metaUser: userId,
-        });
+        );
 
         return { messageId };
     },
@@ -442,5 +431,53 @@ export const getTypingUsers = query({
         return indicators
             .filter(i => i.userId !== userId && i.expiresAt > now)
             .map(i => i.userId);
+    },
+});
+
+export const getConversationById = query({
+    args: { conversationId: v.id("conversations") },
+    handler: async (ctx, { conversationId }) => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) return null;
+
+        const conv = await ctx.db.get(conversationId);
+        if (!conv) return null;
+
+        const otherUserId =
+            conv.unreadCounts.participant1.userId === userId
+                ? conv.unreadCounts.participant2.userId
+                : conv.unreadCounts.participant1.userId;
+
+        const otherProfile = await ctx.db
+            .query("profiles")
+            .withIndex("by_userId", q => q.eq("userId", otherUserId))
+            .first();
+
+        let bookingOrderNo: string | undefined;
+        let bookingServiceName: string | undefined;
+        let bookingStatus: string | undefined;
+
+        if (conv.bookingId) {
+            const booking = await ctx.db.get(conv.bookingId);
+            if (booking) {
+                bookingOrderNo = booking.orderNo;
+                bookingStatus = booking.status;
+                const service = await ctx.db.get(booking.serviceId);
+                bookingServiceName = service?.name;
+            }
+        }
+
+        return {
+            ...conv,
+            otherUser: {
+                userId: otherUserId,
+                firstName: otherProfile?.firstName ?? "",
+                lastName: otherProfile?.lastName ?? "",
+                avatar: otherProfile?.avatar,
+            },
+            bookingOrderNo,
+            bookingServiceName,
+            bookingStatus,
+        };
     },
 });
