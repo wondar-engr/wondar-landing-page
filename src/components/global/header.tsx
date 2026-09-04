@@ -111,6 +111,16 @@ export function Header() {
                                 {link.label}
                             </Link>
                         ))}
+                        <Link
+                            href="/testers"
+                            className="flex items-center gap-1.5 bg-lime/30 text-forest-green px-4 py-1.5 rounded-full text-sm font-semibold hover:bg-lime/50 transition-colors"
+                        >
+                            <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-forest-green opacity-75" />
+                                <span className="relative inline-flex h-2 w-2 rounded-full bg-forest-green" />
+                            </span>
+                            Beta Testers
+                        </Link>
                     </nav>
 
                     {/* CTA Button */}
@@ -169,6 +179,13 @@ export function Header() {
                                     {link.label}
                                 </button>
                             ))}
+                            <Link
+                                href="/testers"
+                                onClick={() => setIsMobileMenuOpen(false)}
+                                className="flex items-center gap-2 bg-lime/20 text-forest-green px-4 py-3 rounded-full font-semibold text-center justify-center"
+                            >
+                                🧪 Beta Testers
+                            </Link>
                             <button
                                 onClick={e => {
                                     e.preventDefault();

@@ -840,6 +840,29 @@ const schema = defineSchema({
         previousCount: v.number(), // what the count was before clearing
         note: v.optional(v.string()), // why it was cleared
     }).index("by_userId", ["userId"]),
+    testers: defineTable({
+        firstName: v.string(),
+        lastName: v.string(),
+        email: v.string(),
+        phone: v.optional(v.string()),
+        city: v.string(),
+        primaryRole: v.union(v.literal("CLIENT"), v.literal("CREATIVE")),
+        status: v.union(
+            v.literal("pending"),
+            v.literal("added"),
+            v.literal("contacted"),
+        ),
+        notes: v.optional(v.string()),
+        deviceOs: v.union(
+            v.literal("IOS"),
+            v.literal("ANDROID"),
+            v.literal("BOTH"),
+        ),
+        updatedAt: v.number(),
+    })
+        .index("by_email", ["email"])
+        .index("by_status", ["status"])
+        .index("by_primaryRole", ["primaryRole"]),
 });
 
 export default schema;
