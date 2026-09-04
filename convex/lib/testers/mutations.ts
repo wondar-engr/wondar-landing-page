@@ -8,7 +8,7 @@ export const register = mutation({
         firstName: v.string(),
         lastName: v.string(),
         email: v.string(),
-        phone: v.optional(v.string()),
+        phone: v.string(),
         city: v.string(),
         primaryRole: v.union(v.literal("CLIENT"), v.literal("CREATIVE")),
         deviceOs: v.union(
@@ -23,6 +23,14 @@ export const register = mutation({
             .query("testers")
             .withIndex("by_email", q => q.eq("email", args.email))
             .unique();
+
+        // Deduplicate by phone number
+        const existingByPhone = await ctx.db
+            .query("testers")
+            .withIndex("by_phone", q => q.eq("phone", args.phone))
+            .unique();
+
+        if (existingByPhone) return { success: true, alreadyRegistered: true };
 
         if (existing) return { success: true, alreadyRegistered: true };
 

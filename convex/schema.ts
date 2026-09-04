@@ -844,7 +844,7 @@ const schema = defineSchema({
         firstName: v.string(),
         lastName: v.string(),
         email: v.string(),
-        phone: v.optional(v.string()),
+        phone: v.string(),
         city: v.string(),
         primaryRole: v.union(v.literal("CLIENT"), v.literal("CREATIVE")),
         status: v.union(
@@ -861,6 +861,7 @@ const schema = defineSchema({
         updatedAt: v.number(),
     })
         .index("by_email", ["email"])
+        .index("by_phone", ["phone"])
         .index("by_status", ["status"])
         .index("by_primaryRole", ["primaryRole"]),
 });
