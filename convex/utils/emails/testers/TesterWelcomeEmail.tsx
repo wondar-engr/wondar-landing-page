@@ -8,7 +8,7 @@ interface TesterWelcomeEmailProps {
     deviceOs: "IOS" | "ANDROID" | "BOTH";
 }
 
-const TESTFLIGHT_URL = "https://testflight.apple.com/join/YOUR_LINK";
+const TESTFLIGHT_URL = "https://testflight.apple.com";
 const PLAYSTORE_URL =
     "https://play.google.com/store/apps/details?id=com.wondarapp.wondarnew";
 

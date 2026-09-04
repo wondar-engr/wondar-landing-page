@@ -851,6 +851,8 @@ const schema = defineSchema({
             v.literal("pending"),
             v.literal("added"),
             v.literal("contacted"),
+            v.literal("rejected"),
+            v.literal("registered"),
         ),
         notes: v.optional(v.string()),
         deviceOs: v.union(

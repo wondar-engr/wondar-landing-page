@@ -1,7 +1,9 @@
 import { internal } from "@convex/_generated/api";
-import { mutation } from "../../_generated/server";
+import { internalMutation, mutation } from "../../_generated/server";
 import { v } from "convex/values";
 import { requireAdminProfile } from "@convex/utils/helpers/auth";
+
+const TOTAL_CAP = 100;
 
 export const register = mutation({
     args: {
@@ -34,19 +36,56 @@ export const register = mutation({
 
         if (existing) return { success: true, alreadyRegistered: true };
 
+        // Hard cap check
+        const all = await ctx.db.query("testers").collect();
+        const active = all.filter(t => t.status !== "rejected");
+
+        if (active.length >= TOTAL_CAP) {
+            return { success: false, atCapacity: true };
+        }
+
         await ctx.db.insert("testers", {
             ...args,
             status: "pending",
-            deviceOs: args.deviceOs,
             updatedAt: Date.now(),
         });
 
+        // Confirmation email
         await ctx.scheduler.runAfter(0, internal.email.sendTesterConfirmation, {
             firstName: args.firstName,
             email: args.email,
             primaryRole: args.primaryRole,
             deviceOs: args.deviceOs,
         });
+
+        // Telegram notification
+        const total = active.length + 1;
+        const clients =
+            all.filter(
+                t => t.status !== "rejected" && t.primaryRole === "CLIENT",
+            ).length + (args.primaryRole === "CLIENT" ? 1 : 0);
+        const creatives = total - clients;
+
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendTelegramNotification,
+            {
+                text: [
+                    `🧪 NEW BETA TESTER REGISTERED`,
+                    ``,
+                    `👤 Name:    ${args.firstName} ${args.lastName}`,
+                    `📧 Email:   ${args.email}`,
+                    `📱 Phone:   ${args.phone}`,
+                    `🏙 City:    ${args.city}`,
+                    `🎭 Role:    ${args.primaryRole}`,
+                    `📲 Device:  ${args.deviceOs}`,
+                    ``,
+                    `📊 Capacity: ${total}/${TOTAL_CAP} total`,
+                    `   Clients:   ${clients} | Creatives: ${creatives}`,
+                ].join("\n"),
+                category: "ACCOUNTS",
+            },
+        );
 
         return { success: true, alreadyRegistered: false };
     },
@@ -80,5 +119,24 @@ export const updateStatus = mutation({
                 deviceOs: tester.deviceOs,
             });
         }
+    },
+});
+
+// Called from databaseHook — marks tester as registered when they sign up on app
+export const markTesterRegistered = internalMutation({
+    args: { email: v.string() },
+    handler: async (ctx, args) => {
+        const tester = await ctx.db
+            .query("testers")
+            .withIndex("by_email", q => q.eq("email", args.email))
+            .unique();
+
+        if (!tester || tester.status === "rejected") return;
+        if (tester.status === "registered") return;
+
+        await ctx.db.patch(tester._id, {
+            status: "registered",
+            updatedAt: Date.now(),
+        });
     },
 });

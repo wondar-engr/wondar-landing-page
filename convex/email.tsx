@@ -11,6 +11,7 @@ import { v } from "convex/values";
 import { TesterWelcomeEmail } from "./utils/emails/testers/TesterWelcomeEmail";
 import { TesterConfirmationEmail } from "./utils/emails/testers/TesterConfirmationEmail";
 import React from "react";
+import TesterRejectionEmail from "./utils/emails/testers/TesterRejectionEmail";
 
 const PDF_URL = process.env.BETA_TEST_GUIDE_PDF_URL;
 
@@ -175,6 +176,22 @@ export const sendTesterWelcome = internalAction({
                     path: PDF_URL,
                 },
             ],
+        });
+    },
+});
+
+export const sendTesterRejection = internalAction({
+    args: {
+        firstName: v.string(),
+        email: v.string(),
+    },
+    handler: async (ctx, args) => {
+        await send(ctx, {
+            to: args.email,
+            subject: "An update on your Wondar beta application",
+            jsx: React.createElement(TesterRejectionEmail, {
+                firstName: args.firstName,
+            }),
         });
     },
 });

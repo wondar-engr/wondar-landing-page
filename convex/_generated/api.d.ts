@@ -25,6 +25,8 @@ import type * as lib_admin_services_mutations from "../lib/admin/services/mutati
 import type * as lib_admin_services_queries from "../lib/admin/services/queries.js";
 import type * as lib_admin_stripe_actions from "../lib/admin/stripe/actions.js";
 import type * as lib_admin_systemConfig from "../lib/admin/systemConfig.js";
+import type * as lib_admin_testers_mutations from "../lib/admin/testers/mutations.js";
+import type * as lib_admin_testers_queries from "../lib/admin/testers/queries.js";
 import type * as lib_admin_user_creatives from "../lib/admin/user/creatives.js";
 import type * as lib_admin_user_queries from "../lib/admin/user/queries.js";
 import type * as lib_admin_users from "../lib/admin/users.js";
@@ -122,6 +124,7 @@ import type * as utils_emails_magicLink from "../utils/emails/magicLink.js";
 import type * as utils_emails_resetPassword from "../utils/emails/resetPassword.js";
 import type * as utils_emails_sendEmail from "../utils/emails/sendEmail.js";
 import type * as utils_emails_testers_TesterConfirmationEmail from "../utils/emails/testers/TesterConfirmationEmail.js";
+import type * as utils_emails_testers_TesterRejectionEmail from "../utils/emails/testers/TesterRejectionEmail.js";
 import type * as utils_emails_testers_TesterWelcomeEmail from "../utils/emails/testers/TesterWelcomeEmail.js";
 import type * as utils_emails_verifyEmail from "../utils/emails/verifyEmail.js";
 import type * as utils_emails_verifyOTP from "../utils/emails/verifyOTP.js";
@@ -163,6 +166,8 @@ declare const fullApi: ApiFromModules<{
   "lib/admin/services/queries": typeof lib_admin_services_queries;
   "lib/admin/stripe/actions": typeof lib_admin_stripe_actions;
   "lib/admin/systemConfig": typeof lib_admin_systemConfig;
+  "lib/admin/testers/mutations": typeof lib_admin_testers_mutations;
+  "lib/admin/testers/queries": typeof lib_admin_testers_queries;
   "lib/admin/user/creatives": typeof lib_admin_user_creatives;
   "lib/admin/user/queries": typeof lib_admin_user_queries;
   "lib/admin/users": typeof lib_admin_users;
@@ -260,6 +265,7 @@ declare const fullApi: ApiFromModules<{
   "utils/emails/resetPassword": typeof utils_emails_resetPassword;
   "utils/emails/sendEmail": typeof utils_emails_sendEmail;
   "utils/emails/testers/TesterConfirmationEmail": typeof utils_emails_testers_TesterConfirmationEmail;
+  "utils/emails/testers/TesterRejectionEmail": typeof utils_emails_testers_TesterRejectionEmail;
   "utils/emails/testers/TesterWelcomeEmail": typeof utils_emails_testers_TesterWelcomeEmail;
   "utils/emails/verifyEmail": typeof utils_emails_verifyEmail;
   "utils/emails/verifyOTP": typeof utils_emails_verifyOTP;

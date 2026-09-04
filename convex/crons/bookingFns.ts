@@ -6,7 +6,6 @@ import { Id } from "@convex/_generated/dataModel";
 import {
     bookingStartToUtcMs,
     bookingEndToUtcMs,
-    formatMinutes,
     formatBookingDate,
     formatBookingTimeWindow,
 } from "@convex/utils/time";
@@ -14,22 +13,6 @@ import {
 const GRACE_CREATIVE_NO_SHOW_MS = 30 * 60 * 1000;
 const GRACE_AUTO_COMPLETE_MS = 60 * 60 * 1000;
 const DISPUTE_OVERDUE_MS = 48 * 60 * 60 * 1000;
-
-function getServiceStartMs(dateBooked: number, startTime: number) {
-    return dateBooked + startTime * 60 * 1000;
-}
-
-function getServiceEndMs(dateBooked: number, endTime: number) {
-    return dateBooked + endTime * 60 * 1000;
-}
-
-function formatTime(minutes: number): string {
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    const period = h >= 12 ? "PM" : "AM";
-    const hour = h % 12 || 12;
-    return `${hour}:${m.toString().padStart(2, "0")} ${period}`;
-}
 
 // ── Fetch rich booking context once, reuse across all actions ─────
 async function getBookingContext(

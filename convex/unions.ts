@@ -282,3 +282,11 @@ export const PostMediaTypeUnion = v.union(
     v.literal("IMAGE"),
     v.literal("VIDEO"),
 );
+
+export const TesterStatusUnion = v.union(
+    v.literal("pending"),
+    v.literal("added"),
+    v.literal("contacted"),
+    v.literal("rejected"),
+    v.literal("registered"),
+);

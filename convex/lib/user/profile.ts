@@ -1,4 +1,4 @@
-import { api } from "../../_generated/api";
+import { api, internal } from "../../_generated/api";
 import { mutation } from "../../_generated/server";
 import { authComponent, getAuthUserId } from "../../auth";
 import { UserTypeUnion } from "../../unions";
@@ -254,6 +254,20 @@ export const initProfile = mutation({
                 };
             }
 
+            await ctx.scheduler.runAfter(
+                0,
+                internal.lib.appActions.notifications.sendTelegramNotification,
+                {
+                    text: [
+                        `🎉 NEW USER REGISTERED`,
+                        ``,
+                        `📧 Email:   ${user.email}`,
+                        `🆔 User ID: ${user._id}`,
+                    ].join("\n"),
+                    category: "ACCOUNTS",
+                },
+            );
+
             await ctx.db.insert("profiles", {
                 userId: user._id,
                 email: user.email,
@@ -267,6 +281,12 @@ export const initProfile = mutation({
                 },
                 role: "USER",
             });
+
+            await ctx.scheduler.runAfter(
+                0,
+                internal.lib.testers.mutations.markTesterRegistered,
+                { email: user.email },
+            );
 
             return {
                 status: true,

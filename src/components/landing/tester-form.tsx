@@ -34,6 +34,7 @@ type FormData = z.infer<typeof schema>;
 export function TesterForm() {
     const [submitted, setSubmitted] = useState(false);
     const [alreadyRegistered, setAlreadyRegistered] = useState(false);
+    const [atCapacity, setAtCapacity] = useState(false);
     const register = useMutation(api.lib.testers.mutations.register);
 
     const {
@@ -44,7 +45,16 @@ export function TesterForm() {
 
     const onSubmit = async (data: FormData) => {
         const result = await register(data);
-        setAlreadyRegistered(result.alreadyRegistered);
+
+        if (!result.success && result.atCapacity) {
+            // show capacity message
+            setAtCapacity(true);
+            return;
+        }
+
+        if (result.alreadyRegistered) {
+            setAlreadyRegistered(true);
+        }
         setSubmitted(true);
     };
 
@@ -69,6 +79,21 @@ export function TesterForm() {
                                 {alreadyRegistered
                                     ? "We already have your details. We'll be in touch soon."
                                     : "We'll reach out with next steps and app access details."}
+                            </p>
+                        </motion.div>
+                    ) : atCapacity ? (
+                        <motion.div
+                            key="capacity"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-red-100 rounded-3xl p-10 text-center"
+                        >
+                            <h2 className="text-2xl font-bold text-slate mb-2">
+                                We&apos;re at capacity!
+                            </h2>
+                            <p className="text-slate/60">
+                                Unfortunately, we can&apos;t accept more testers
+                                at the moment. Please check back later.
                             </p>
                         </motion.div>
                     ) : (
