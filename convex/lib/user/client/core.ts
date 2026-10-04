@@ -89,6 +89,18 @@ export const getClientDrawerData = query({
             ...convAsP2.map(c => c.unreadCounts.participant2.count),
         ].reduce((sum, n) => sum + n, 0);
 
+        // ==========================================
+        // Get quotes needing client attention
+        // ==========================================
+        const myQuotes = await ctx.db
+            .query("quotes")
+            .withIndex("by_clientId", q => q.eq("clientId", userId))
+            .collect();
+
+        const quotesNeedingAttention = myQuotes.filter(
+            q => q.status === "CREATIVE_COUNTERED",
+        ).length;
+
         return {
             // User info
             user: {
@@ -118,6 +130,7 @@ export const getClientDrawerData = query({
                 notifications: unreadNotifications.length,
                 messages: unreadMessages,
                 bookings: pendingBookings,
+                quotes: quotesNeedingAttention,
             },
         };
     },

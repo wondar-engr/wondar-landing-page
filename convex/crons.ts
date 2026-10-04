@@ -16,4 +16,10 @@ crons.cron(
     internal.crons.bookingFns.processBookingLifecycle,
 );
 
+crons.cron(
+    "process-quote-deadlines",
+    "*/15 * * * *",
+    internal.crons.quoteFns.processQuoteDeadlines,
+);
+
 export default crons;

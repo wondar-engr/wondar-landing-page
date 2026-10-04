@@ -91,6 +91,13 @@ export const createConnectAccount = action({
             metadata: {
                 wondarUserId: args.userId,
             },
+            settings: {
+                payouts: {
+                    schedule: {
+                        interval: "manual",
+                    },
+                },
+            },
         });
 
         // Create onboarding link
@@ -358,10 +365,11 @@ export const requestPayout = action({
     args: {
         amount: v.number(),
         currency: v.string(),
+        method: v.union(v.literal("standard"), v.literal("instant")),
     },
     handler: async (
         ctx,
-        { amount, currency },
+        { amount, currency, method },
     ): Promise<{ success: boolean; payoutId: string }> => {
         const userId = await getAuthUserId(ctx);
         if (!userId) throw new Error("Unauthenticated");
@@ -383,12 +391,36 @@ export const requestPayout = action({
 
         const stripe = getStripe();
 
-        // Create payout on the connected account
+        // Instant payouts require a debit card — check eligibility
+        if (method === "instant") {
+            const externalAccounts = await stripe.accounts.listExternalAccounts(
+                stripeAccount.stripeAccountId,
+                { object: "card", limit: 1 },
+            );
+            if (externalAccounts.data.length === 0) {
+                throw new Error(
+                    "Instant payout requires a debit card. Add one in your Stripe account first.",
+                );
+            }
+        }
+
+        // Calculate fee for instant (1.5%, min $0.50)
+        const feeCharged =
+            method === "instant" ? Math.max(Math.round(amount * 0.015), 50) : 0;
+
+        const payoutAmount =
+            method === "instant" ? amount - feeCharged : amount;
+
         const payout = await stripe.payouts.create(
             {
-                amount,
+                amount: payoutAmount,
                 currency,
-                metadata: { userId, platform: "wondar" },
+                method,
+                metadata: {
+                    userId,
+                    platform: "wondar",
+                    feeCharged: String(feeCharged),
+                },
             },
             { stripeAccount: stripeAccount.stripeAccountId },
         );
@@ -404,7 +436,30 @@ export const requestPayout = action({
                 currency: payout.currency.toUpperCase(),
                 arrivalDate: payout.arrival_date,
                 status: "PENDING",
-                type: "MANUAL",
+                type: method === "instant" ? "INSTANT" : "MANUAL",
+            },
+        );
+
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendTelegramNotification,
+            {
+                text: [
+                    `💸 PAYOUT REQUESTED`,
+                    ``,
+                    `👤 Creative ID: ${userId}`,
+                    `💰 Amount:      ${(payoutAmount / 100).toFixed(2)} ${currency.toUpperCase()}`,
+                    `⚡ Method:      ${method === "instant" ? "Instant (30 min)" : "Standard (2 days)"}`,
+                    ...(method === "instant"
+                        ? [
+                              `💵 Fee charged: ${(feeCharged / 100).toFixed(2)} ${currency.toUpperCase()}`,
+                          ]
+                        : []),
+                    `🏦 Stripe Acct: ${stripeAccount.stripeAccountId}`,
+                    `🆔 Payout ID:   ${payout.id}`,
+                    `📅 Arrival:     ${new Date(payout.arrival_date * 1000).toDateString()}`,
+                ].join("\n"),
+                category: "PAYMENTS",
             },
         );
 

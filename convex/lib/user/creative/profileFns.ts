@@ -65,16 +65,19 @@ export const updateProfile = mutation({
 export const updateBusinessInfo = mutation({
     args: {
         businessName: v.string(),
-        workAddress: v.object({
-            address: v.string(),
-            city: v.string(),
-            state: v.string(),
-            zipCode: v.string(),
-            lat: v.number(),
-            lng: v.number(),
-        }),
+        workAddress: v.optional(
+            v.object({
+                address: v.string(),
+                city: v.string(),
+                state: v.string(),
+                zipCode: v.string(),
+                lat: v.number(),
+                lng: v.number(),
+            }),
+        ),
         willingToTravel: v.optional(v.boolean()),
         travelRadius: v.optional(v.number()),
+        acceptsQuotes: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         const userId = await getAuthUserId(ctx);
@@ -92,6 +95,7 @@ export const updateBusinessInfo = mutation({
             workAddress: args.workAddress,
             willingToTravel: args.willingToTravel,
             travelRadius: args.travelRadius,
+            acceptsQuotes: args.acceptsQuotes,
         });
     },
 });

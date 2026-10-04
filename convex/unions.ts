@@ -290,3 +290,24 @@ export const TesterStatusUnion = v.union(
     v.literal("rejected"),
     v.literal("registered"),
 );
+
+export const PayoutMethodUnion = v.union(
+    v.literal("INSTANT"),
+    v.literal("MANUAL"),
+);
+
+export const QuoteStatusUnion = v.union(
+    v.literal("DRAFT"),
+    v.literal("PENDING"),
+    v.literal("CREATIVE_COUNTERED"),
+    v.literal("CLIENT_FINAL"),
+    v.literal("ACCEPTED"),
+    v.literal("DECLINED_BY_CREATIVE"),
+    v.literal("DECLINED_BY_CLIENT"),
+    v.literal("FINAL_DECLINED"),
+    v.literal("EXPIRED"),
+);
+
+export const QuoteAwaitingRoleUnion = v.union(
+    v.union(v.literal("CLIENT"), v.literal("CREATIVE")),
+);

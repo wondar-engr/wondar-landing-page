@@ -2,6 +2,7 @@
 // INTERNAL MUTATIONS
 // ==========================================
 
+import { PayoutMethodUnion } from "@convex/unions";
 import { internalMutation } from "../../_generated/server";
 import { v } from "convex/values";
 
@@ -112,7 +113,7 @@ export const createPayoutRecord = internalMutation({
             v.literal("FAILED"),
             v.literal("CANCELED"),
         ),
-        type: v.union(v.literal("AUTOMATIC"), v.literal("MANUAL")),
+        type: PayoutMethodUnion,
     },
     handler: async (ctx, args) => {
         const existing = await ctx.db

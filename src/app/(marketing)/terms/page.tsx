@@ -283,6 +283,35 @@ export default function TermsPage() {
                                         prepared
                                     </li>
                                 </ul>
+
+                                <h3 className="text-lg font-semibold text-slate mb-3 mt-6">
+                                    Get A Quote Requests
+                                </h3>
+                                <ul className="list-disc list-inside text-slate/80 space-y-2 ml-4">
+                                    <li>
+                                        A quote request is not a confirmed
+                                        booking until a Creative accepts it
+                                    </li>
+                                    <li>
+                                        Creatives have 48 hours to respond to a
+                                        quote request before it expires
+                                        automatically
+                                    </li>
+                                    <li>
+                                        Either party may counter-offer on price,
+                                        date, or time before reaching agreement
+                                    </li>
+                                    <li>
+                                        A &quot;final offer&quot; is binding on
+                                        acceptance — once sent, it can only be
+                                        accepted or declined, with no further
+                                        negotiation
+                                    </li>
+                                    <li>
+                                        An accepted quote automatically creates
+                                        a booking under these Terms
+                                    </li>
+                                </ul>
                             </section>
 
                             {/* Section 5 */}
@@ -485,6 +514,29 @@ export default function TermsPage() {
                                     <li>
                                         Final decisions are at Wondar&apos;s
                                         discretion
+                                    </li>
+                                </ul>
+
+                                <h3 className="text-lg font-semibold text-slate mb-3">
+                                    Dispute Statements
+                                </h3>
+                                <ul className="list-disc list-inside text-slate/80 space-y-2 mb-6 ml-4">
+                                    <li>
+                                        When a dispute is raised, the affected
+                                        party will be notified in-app and
+                                        required to submit a dispute statement
+                                        with supporting details
+                                    </li>
+                                    <li>
+                                        Failure to submit a statement within the
+                                        requested timeframe may result in the
+                                        dispute being resolved based on
+                                        available information alone
+                                    </li>
+                                    <li>
+                                        Wondar reviews all submitted statements
+                                        and evidence before making a final
+                                        determination
                                     </li>
                                 </ul>
 

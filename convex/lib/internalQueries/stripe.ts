@@ -24,3 +24,9 @@ export const getBookingForPaymentInternal = internalQuery({
         return await ctx.db.get(bookingId);
     },
 });
+
+export const getAllStripeAccounts = internalQuery({
+    handler: async ctx => {
+        return await ctx.db.query("stripeAccounts").collect();
+    },
+});

@@ -381,19 +381,28 @@ export const getRecentActivity = query({
     },
 });
 
-// Also export tab badges query
 export const getTabBadges = query({
     args: {},
     handler: async ctx => {
         const userId = await getAuthUserId(ctx);
         if (!userId) return null;
 
-        // Pending bookings count
-        const pendingBookings = await ctx.db
+        // ADD — fetch all creative's active bookings, filter by actionable statuses
+        const allBookings = await ctx.db
             .query("bookings")
             .withIndex("by_creative", q => q.eq("creativeId", userId))
-            .filter(q => q.eq(q.field("status"), "PENDING"))
             .collect();
+
+        const pendingBookings = allBookings.filter(b => b.status === "PENDING");
+        const disputeBookings = allBookings.filter(b => b.status === "DISPUTE");
+        const inProgressBookings = allBookings.filter(
+            b => b.status === "IN_PROGRESS",
+        );
+
+        const actionableBookings =
+            pendingBookings.length +
+            disputeBookings.length +
+            inProgressBookings.length;
 
         // Unread notifications count
         const unreadNotifications = await ctx.db
@@ -403,7 +412,6 @@ export const getTabBadges = query({
             )
             .collect();
 
-        // TODO: Unread messages count (when messaging is implemented)
         const [convAsP1, convAsP2] = await Promise.all([
             ctx.db
                 .query("conversations")
@@ -424,10 +432,24 @@ export const getTabBadges = query({
             ...convAsP2.map(c => c.unreadCounts.participant2.count),
         ].reduce((sum, n) => sum + n, 0);
 
+        const incomingQuotes = await ctx.db
+            .query("quotes")
+            .withIndex("by_creativeId", q => q.eq("creativeId", userId))
+            .collect();
+
+        const pendingQuotes = incomingQuotes.filter(
+            q => q.status === "PENDING" || q.status === "CLIENT_FINAL",
+        ).length;
+
         return {
             pendingBookings: pendingBookings.length,
+            disputeBookings: disputeBookings.length, // ADD
+            inProgressBookings: inProgressBookings.length, // ADD
+            actionableBookings, // ADD — combined total
+            hasUrgentBooking: disputeBookings.length > 0, // ADD — drives red color
             unreadNotifications: unreadNotifications.length,
             unreadMessages,
+            pendingQuotes,
         };
     },
 });
