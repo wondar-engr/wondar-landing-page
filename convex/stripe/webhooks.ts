@@ -561,7 +561,7 @@ export const handlePayoutCreated = internalMutation({
             currency: args.currency.toUpperCase(),
             status,
             arrivalDate: args.arrivalDate,
-            type: "AUTOMATIC",
+            type: "MANUAL",
             updatedAt: Date.now(),
         });
 
