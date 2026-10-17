@@ -1,6 +1,7 @@
 import { mutation, query } from "../../../_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "../../../auth";
+import { MAX_FAVORITE_CATEGORIES } from "@convex/utils/limits";
 
 // ── Get my client profile ─────────────────────────────────────────
 export const getMyClientProfile = query({
@@ -107,8 +108,14 @@ export const updateFavoriteCategories = mutation({
         const userId = await getAuthUserId(ctx);
         if (!userId) throw new Error("Unauthenticated");
 
-        if (categories.length === 0) {
-            throw new Error("Select at least one category");
+        const unique = [...new Set(categories)];
+        if (unique.length === 0)
+            throw new Error("Select at least one interest");
+
+        if (unique.length > MAX_FAVORITE_CATEGORIES) {
+            throw new Error(
+                `Choose up to ${MAX_FAVORITE_CATEGORIES} categories`,
+            );
         }
 
         const clientProfile = await ctx.db
@@ -119,7 +126,7 @@ export const updateFavoriteCategories = mutation({
         if (!clientProfile) throw new Error("Client profile not found");
 
         await ctx.db.patch(clientProfile._id, {
-            favoriteCategories: categories,
+            favoriteCategories: unique,
         });
     },
 });

@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { internalMutation, mutation } from "../../../_generated/server";
 import { BookingStatusUnion, DisputeOutcomeUnion } from "@convex/unions";
 import { requireAdminProfile } from "@convex/utils/helpers/auth";
+import { sendNotification } from "@convex/lib/notifications";
 
 // ── internalMutation — called from Stripe action, no auth ctx available
 export const resolveDispute = internalMutation({
@@ -22,16 +23,56 @@ export const resolveDispute = internalMutation({
                 ? "REFUNDED"
                 : "COMPLETED";
 
+        const now = Date.now();
+        const releasing = newStatus === "COMPLETED";
+        const needsFinalPayment =
+            releasing && booking.paymentPhase === "UPFRONT_PAID";
+
         await ctx.db.patch(args.bookingId, {
             status: newStatus,
             disputeResolution: {
                 resolvedBy: args.resolvedBy,
-                resolvedAt: Date.now(),
+                resolvedAt: now,
                 outcome: args.outcome,
                 note: args.resolutionNote,
             },
-            updatedAt: Date.now(),
+            ...(needsFinalPayment
+                ? {
+                      paymentPhase: "FINAL_PENDING" as const,
+                      completedAt: booking.completedAt ?? now,
+                      completedBy: "SYSTEM" as const,
+                  }
+                : {}),
+            updatedAt: now,
         });
+
+        // Count the job once, on whichever route completes it first
+        if (releasing && !booking.completedAt) {
+            const service = await ctx.db.get(booking.serviceId);
+            if (service) {
+                await ctx.db.patch(service._id, {
+                    stats: {
+                        ...service.stats,
+                        timesCompleted: service.stats.timesCompleted + 1,
+                    },
+                });
+            }
+        }
+
+        // Tell the client the remaining balance is now payable
+        if (needsFinalPayment) {
+            await sendNotification(ctx, {
+                userId: booking.clientId,
+                title: "Final Payment Due",
+                body: `Your dispute was resolved. Please complete your final payment of $${(booking.remainingDueAmount / 100).toFixed(2)} to close out the booking.`,
+                type: "BOOKING",
+                meta: {
+                    screen: "booking_detail",
+                    id: booking._id,
+                    action: "PAY_FINAL",
+                },
+            });
+        }
 
         const existing = await ctx.db
             .query("bookingDisputes")

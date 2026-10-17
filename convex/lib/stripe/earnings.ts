@@ -20,72 +20,6 @@ const getStripe = () => {
 // ==========================================
 // QUERIES
 // ==========================================
-
-export const getEarningsSummary2 = query({
-    args: {},
-    handler: async ctx => {
-        const userId = await getAuthUserId(ctx);
-        if (!userId) throw new Error("Unauthenticated");
-
-        // ── Real balance from Stripe (via webhook sync) ───────────
-        const stripeAccount = await ctx.db
-            .query("stripeAccounts")
-            .withIndex("by_userId", q => q.eq("userId", userId))
-            .first();
-
-        // ── Transaction totals (capped) ───────────────────────────
-        const now = Date.now();
-        const thisMonthStart = new Date();
-        thisMonthStart.setDate(1);
-        thisMonthStart.setHours(0, 0, 0, 0);
-
-        const lastMonthStart = new Date(thisMonthStart);
-        lastMonthStart.setMonth(lastMonthStart.getMonth() - 1);
-        const lastMonthEnd = new Date(thisMonthStart);
-        lastMonthEnd.setMilliseconds(-1);
-
-        const recentTx = await ctx.db
-            .query("transactions")
-            .withIndex("by_creativeId", q => q.eq("creativeId", userId))
-            .filter(q => q.eq(q.field("status"), "SUCCEEDED"))
-            .take(500);
-
-        let totalEarnings = 0;
-        let thisMonthEarnings = 0;
-        let lastMonthEarnings = 0;
-
-        for (const tx of recentTx) {
-            totalEarnings += tx.creativeEarnings;
-            if (tx._creationTime >= thisMonthStart.getTime()) {
-                thisMonthEarnings += tx.creativeEarnings;
-            } else if (
-                tx._creationTime >= lastMonthStart.getTime() &&
-                tx._creationTime <= lastMonthEnd.getTime()
-            ) {
-                lastMonthEarnings += tx.creativeEarnings;
-            }
-        }
-
-        return {
-            // ← Real balance from Stripe, not calculated
-            availableBalance: stripeAccount?.balance ?? 0,
-            // Pending = stripe knows, we estimate from recent tx
-            pendingBalance: recentTx
-                .filter(
-                    tx =>
-                        tx.completedAt &&
-                        tx.completedAt >= now - 7 * 24 * 60 * 60 * 1000,
-                )
-                .reduce((sum, tx) => sum + tx.creativeEarnings, 0),
-            totalEarnings,
-            totalTransactions: recentTx.length,
-            thisMonthEarnings,
-            lastMonthEarnings,
-            currency: stripeAccount?.defaultCurrency ?? "USD",
-        };
-    },
-});
-
 /**
  * Get earnings summary for a creative
  */
@@ -134,6 +68,7 @@ export const getEarningsSummary = query({
         const pendingBalance = recentTx
             .filter(
                 tx =>
+                    tx.source !== "OFFLINE" && // offline money was never held by Stripe
                     tx.completedAt &&
                     tx.completedAt >= now - 7 * 24 * 60 * 60 * 1000,
             )

@@ -516,14 +516,18 @@ export const completeService = mutation({
             });
         }
 
-        await sendNotification(ctx, {
-            userId: booking.clientId,
-            title: "Service Completed! ⭐",
-            body: `${creativeName} has marked your service as complete. Please make your final payment to complete the booking. How was your experience? Leave a review!`,
-            type: "BOOKING",
-            meta: { screen: "booking_review", id: bookingId },
-            metaUser: creativeId,
-        });
+        try {
+            await sendNotification(ctx, {
+                userId: booking.clientId,
+                title: "Service Completed! ⭐",
+                body: `${creativeName} has marked your service as complete. Please make your final payment to complete the booking. How was your experience? Leave a review!`,
+                type: "BOOKING",
+                meta: { screen: "booking_review", id: bookingId },
+                metaUser: creativeId,
+            });
+        } catch (e) {
+            console.error("[completeService] notification failed", e);
+        }
 
         // ── Telegram → BOOKINGS ───────────────────────────────────
         await ctx.scheduler.runAfter(

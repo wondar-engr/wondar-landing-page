@@ -9,80 +9,37 @@ import {
     formatBookingDate,
     formatBookingTimeWindow,
 } from "@convex/utils/time";
+import { getBookingContext } from "./bookingContext";
 
 const GRACE_CREATIVE_NO_SHOW_MS = 30 * 60 * 1000;
 const GRACE_AUTO_COMPLETE_MS = 60 * 60 * 1000;
 const DISPUTE_OVERDUE_MS = 48 * 60 * 60 * 1000;
-
-// ── Fetch rich booking context once, reuse across all actions ─────
-async function getBookingContext(
-    ctx: MutationCtx,
-    booking: {
-        clientId: string;
-        creativeId: string;
-        serviceId: Id<"services">;
-        dateBooked: number;
-        startTime: number;
-        endTime: number;
-        clientTimezone: string;
-    },
-) {
-    const [clientProfile, creativeProfile, service] = await Promise.all([
-        ctx.db
-            .query("profiles")
-            .withIndex("by_userId", q => q.eq("userId", booking.clientId))
-            .first(),
-        ctx.db
-            .query("creativeProfiles")
-            .withIndex("by_userId", q => q.eq("userId", booking.creativeId))
-            .first(),
-        ctx.db.get(booking.serviceId),
-    ]);
-
-    const clientName = clientProfile
-        ? `${clientProfile.firstName ?? ""} ${clientProfile.lastName ?? ""}`.trim()
-        : `Client (${booking.clientId.slice(-6)})`;
-
-    const creativeName =
-        creativeProfile?.businessName ??
-        `Creative (${booking.creativeId.slice(-6)})`;
-
-    const serviceName = service?.name ?? "Unknown Service";
-
-    const clientTimezone = booking.clientTimezone ?? "UTC";
-    const serviceDate = formatBookingDate(booking.dateBooked);
-    const timeWindow = formatBookingTimeWindow(
-        booking.startTime,
-        booking.endTime,
-        clientTimezone,
-    );
-
-    return {
-        clientName,
-        creativeName,
-        serviceName,
-        serviceDate,
-        timeWindow,
-        creativeProfile,
-    };
-}
 
 export const processBookingLifecycle = internalMutation({
     args: {},
     handler: async ctx => {
         const now = Date.now();
 
-        const activeBookings = await ctx.db
-            .query("bookings")
-            .filter(q =>
-                q.and(
-                    q.neq(q.field("status"), "CANCELLED"),
-                    q.neq(q.field("status"), "REFUNDED"),
-                    q.neq(q.field("status"), "DISPUTE"),
-                    q.neq(q.field("status"), "FULLY_SETTLED"),
+        // Only the statuses the steps below act on. Settled, completed, cancelled
+        // and refunded bookings are never loaded.
+        const ACTIVE_STATUSES = [
+            "PENDING",
+            "CONFIRMED",
+            "PAID",
+            "IN_PROGRESS",
+            "DISPUTE",
+        ] as const;
+
+        const activeBookings = (
+            await Promise.all(
+                ACTIVE_STATUSES.map(status =>
+                    ctx.db
+                        .query("bookings")
+                        .withIndex("by_status", q => q.eq("status", status))
+                        .collect(),
                 ),
             )
-            .collect();
+        ).flat();
 
         for (const booking of activeBookings) {
             const clientTimezone = booking.clientTimezone ?? "UTC";

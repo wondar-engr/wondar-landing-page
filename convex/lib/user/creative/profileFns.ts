@@ -78,6 +78,7 @@ export const updateBusinessInfo = mutation({
         willingToTravel: v.optional(v.boolean()),
         travelRadius: v.optional(v.number()),
         acceptsQuotes: v.optional(v.boolean()),
+        showExactAddress: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         const userId = await getAuthUserId(ctx);
@@ -96,6 +97,7 @@ export const updateBusinessInfo = mutation({
             willingToTravel: args.willingToTravel,
             travelRadius: args.travelRadius,
             acceptsQuotes: args.acceptsQuotes,
+            showExactAddress: args.showExactAddress,
         });
     },
 });

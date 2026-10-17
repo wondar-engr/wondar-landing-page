@@ -1,3 +1,4 @@
+import { MAX_FAVORITE_CATEGORIES } from "@convex/utils/limits";
 import { api } from "../../../_generated/api";
 import { mutation, query } from "../../../_generated/server";
 import { getAuthUserId } from "../../../auth";
@@ -133,6 +134,16 @@ export const updateClientProfile = mutation({
                 throw new CustomError("Client profile not found");
             }
 
+            const categories = favoriteCategories
+                ? [...new Set(favoriteCategories)]
+                : undefined;
+
+            if (categories && categories.length > MAX_FAVORITE_CATEGORIES) {
+                throw new CustomError(
+                    `You can choose up to ${MAX_FAVORITE_CATEGORIES} interests`,
+                );
+            }
+
             await ctx.db.patch(existingClientProfile._id, {
                 companyName: companyName ?? existingClientProfile.companyName,
                 aboutCompany:
@@ -140,8 +151,7 @@ export const updateClientProfile = mutation({
                 personalAddress:
                     personalAddress ?? existingClientProfile.personalAddress,
                 favoriteCategories:
-                    favoriteCategories ??
-                    existingClientProfile.favoriteCategories,
+                    categories ?? existingClientProfile.favoriteCategories,
             });
 
             return { status: true };

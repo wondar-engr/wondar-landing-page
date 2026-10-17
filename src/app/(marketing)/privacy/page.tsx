@@ -135,9 +135,10 @@ export default function PrivacyPage() {
                                     <li>Profile photo (optional)</li>
                                     <li>
                                         Approximate location data (to find
-                                        nearby creatives). Your exact address is
-                                        never displayed to other users — we only
-                                        show general proximity.
+                                        nearby creatives). Exact addresses are
+                                        hidden from other users by default.
+                                        Creatives may choose to display their
+                                        business address.
                                     </li>
                                     <li>
                                         Payment information (processed securely
@@ -260,8 +261,9 @@ export default function PrivacyPage() {
                                     photo, reviews, and approximate
                                     location/distance) is visible to other users
                                     to facilitate bookings and build trust in
-                                    the marketplace. Your precise address is
-                                    never shared with other users.
+                                    the marketplace. A creative’s precise
+                                    business address is shown only if they
+                                    choose to display it.
                                 </p>
 
                                 <h3 className="text-lg font-semibold text-slate mb-3">

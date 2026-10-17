@@ -7,6 +7,7 @@ import {
     THIRTY_DAYS_MS,
 } from "../../../utils/helpers";
 import { v } from "convex/values";
+import { publicWorkAddress } from "@convex/utils/helpers/address";
 
 // ==========================================
 // GET SINGLE CREATIVE PROFILE
@@ -41,18 +42,20 @@ export const getCreativeProfile = query({
             }) || [],
         );
 
+        const { workAddress: _hidden, ...rest } = creativeProfile;
+
         return {
             profile: {
                 id: profile.userId,
                 firstName: profile.firstName,
                 lastName: profile.lastName,
-                email: profile.email,
                 avatar: profile.avatar,
                 lastSeen: profile.lastSeen,
             },
             creativeProfile: {
-                ...creativeProfile,
+                ...rest,
                 skills: skills.filter(Boolean),
+                workAddress: publicWorkAddress(creativeProfile),
             },
         };
     },
@@ -112,6 +115,7 @@ export const getNearbyCreatives = query({
         radiusInMiles: v.number(),
         limit: v.optional(v.number()),
         categoryId: v.optional(v.id("serviceCategories")),
+        categoryIds: v.optional(v.array(v.id("serviceCategories"))),
         minRating: v.optional(v.number()),
         maxPrice: v.optional(v.number()),
     },
@@ -123,12 +127,19 @@ export const getNearbyCreatives = query({
             radiusInMiles,
             limit = 20,
             categoryId,
+            categoryIds,
             minRating,
             maxPrice,
         },
     ) => {
         const userId = await getAuthUserId(ctx);
         if (!userId) return null;
+
+        const wanted = categoryIds?.length
+            ? categoryIds
+            : categoryId
+              ? [categoryId]
+              : undefined;
 
         const bounds = getBoundingBox(lat, lng, radiusInMiles);
 
@@ -147,12 +158,8 @@ export const getNearbyCreatives = query({
 
         const results = await Promise.all(
             creativeProfiles.map(async creative => {
-                const distance = calculateDistance(
-                    lat,
-                    lng,
-                    creative.workAddress.lat,
-                    creative.workAddress.lng,
-                );
+                const loc = publicWorkAddress(creative);
+                const distance = calculateDistance(lat, lng, loc.lat, loc.lng);
 
                 if (distance > radiusInMiles) return null;
 
@@ -178,11 +185,9 @@ export const getNearbyCreatives = query({
                     )
                     .collect();
 
-                if (categoryId) {
-                    services = services.filter(
-                        s => s.categoryId === categoryId,
-                    );
-                    if (services.length === 0) return null;
+                if (wanted) {
+                    const set = new Set<string>(wanted);
+                    services = services.filter(s => set.has(s.categoryId));
                 }
                 if (services.length === 0) return null;
 
@@ -216,7 +221,6 @@ export const getNearbyCreatives = query({
                         return category?.name || "Creative";
                     }) || [],
                 );
-
                 return {
                     id: creative.userId,
                     firstName: profile.firstName || "",
@@ -231,8 +235,8 @@ export const getNearbyCreatives = query({
                     startingPrice,
                     isNew: creative._creationTime > Date.now() - THIRTY_DAYS_MS,
                     isAvailableToday: false,
-                    lat: creative.workAddress.lat,
-                    lng: creative.workAddress.lng,
+                    lat: loc.lat,
+                    lng: loc.lng,
                 };
             }),
         );
@@ -491,6 +495,9 @@ export const likePost = mutation({
         const userId = await getAuthUserId(ctx);
         if (!userId) throw new Error("Not authenticated");
 
+        const post = await ctx.db.get(postId);
+        if (!post) throw new Error("Post not found");
+
         const existing = await ctx.db
             .query("postLikes")
             .withIndex("by_user_post", q =>
@@ -500,34 +507,30 @@ export const likePost = mutation({
 
         if (existing) {
             await ctx.db.delete(existing._id);
-            // Decrement stats
-            const post = await ctx.db.get(postId);
-            if (post) {
-                await ctx.db.patch(postId, {
-                    stats: {
-                        ...post.stats,
-                        likes: Math.max(0, (post.stats?.likes ?? 1) - 1),
-                    },
-                });
-            }
-            return { liked: false };
-        } else {
-            await ctx.db.insert("postLikes", {
-                postId,
-                userId,
-                createdAt: Date.now(),
+            await ctx.db.patch(postId, {
+                stats: {
+                    ...post.stats,
+                    likes: Math.max(0, (post.stats?.likes ?? 1) - 1),
+                },
             });
-            const post = await ctx.db.get(postId);
-            if (post) {
-                await ctx.db.patch(postId, {
-                    stats: {
-                        ...post.stats,
-                        likes: (post.stats?.likes ?? 0) + 1,
-                    },
-                });
-            }
-            return { liked: true };
+            return { liked: false };
         }
+        // ADD: only blocks new likes
+        if (post.creativeId === userId) {
+            throw new Error("You can't like your own post");
+        }
+        await ctx.db.insert("postLikes", {
+            postId,
+            userId,
+            createdAt: Date.now(),
+        });
+        await ctx.db.patch(postId, {
+            stats: {
+                ...post.stats,
+                likes: (post.stats?.likes ?? 0) + 1,
+            },
+        });
+        return { liked: true };
     },
 });
 

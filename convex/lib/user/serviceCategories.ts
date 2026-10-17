@@ -45,3 +45,40 @@ export const getAllServiceCategories = query({
         return categories;
     },
 });
+
+export const getCategoryTree = query({
+    args: {},
+    handler: async ctx => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) return null;
+
+        const [groups, categories] = await Promise.all([
+            ctx.db.query("categoryGroups").collect(),
+            ctx.db.query("serviceCategories").collect(),
+        ]);
+
+        const active = categories.filter(c => c.status !== false); // rows with no status (ranks 5 to 7) count as active
+
+        const byRank = (
+            a: { rank: number; name: string },
+            b: { rank: number; name: string },
+        ) => a.rank - b.rank || a.name.localeCompare(b.name);
+
+        const tree = groups
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map(g => ({
+                key: g._id as string,
+                name: g.name,
+                categories: active
+                    .filter(c => c.groupIds?.includes(g._id))
+                    .sort(byRank),
+            }))
+            .filter(g => g.categories.length > 0);
+
+        const ungrouped = active.filter(c => !c.groupIds?.length).sort(byRank);
+        if (ungrouped.length > 0) {
+            tree.push({ key: "other", name: "Other", categories: ungrouped });
+        }
+        return tree;
+    },
+});

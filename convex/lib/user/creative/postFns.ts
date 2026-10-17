@@ -121,10 +121,17 @@ export const getMyPosts = query({
                     .withIndex("by_postId", q => q.eq("postId", post._id))
                     .collect();
 
+                let service = null;
+                if (post.serviceId) {
+                    const s = await ctx.db.get(post.serviceId);
+                    if (s) service = { _id: s._id, name: s.name };
+                }
+
                 return {
                     ...post,
                     likeCount: likes.length,
                     likedByMe: likes.some(l => l.userId === creativeId),
+                    service,
                 };
             }),
         );

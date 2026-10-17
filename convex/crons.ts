@@ -22,4 +22,22 @@ crons.cron(
     internal.crons.quoteFns.processQuoteDeadlines,
 );
 
+crons.cron(
+    "send-start-reminders",
+    "*/5 * * * *",
+    internal.crons.bookingReminders.sendStartReminders,
+);
+
+crons.cron(
+    "process-final-payments",
+    "*/10 * * * *",
+    internal.crons.bookingReminders.processFinalPayments,
+);
+
+crons.cron(
+    "send-client-reminders",
+    "*/5 * * * *",
+    internal.crons.bookingReminders.sendClientReminders,
+);
+
 export default crons;

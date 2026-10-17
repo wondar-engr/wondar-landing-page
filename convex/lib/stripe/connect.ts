@@ -7,6 +7,7 @@ import { getStripe } from "./index";
 import { StripeError } from "../../utils/helpers/types";
 import { getAuthUserId } from "@convex/auth";
 import { extractBalance } from "@convex/utils/helpers/stripe";
+import { instantPayoutFee } from "@convex/utils/payoutFee";
 
 const REFRESH_URL = `${process.env.APP_URL}/stripe/connect/refresh`;
 const SUCCESS_URL = `${process.env.APP_URL}/stripe/connect/success`;
@@ -389,6 +390,16 @@ export const requestPayout = action({
             throw new Error("Invalid payout amount");
         }
 
+        const feeCharged = method === "instant" ? instantPayoutFee(amount) : 0;
+        const payoutAmount =
+            method === "instant" ? amount - feeCharged : amount;
+
+        if (payoutAmount <= 0) {
+            throw new Error(
+                "Your balance is too low for an instant payout. Use a standard payout instead.",
+            );
+        }
+
         const stripe = getStripe();
 
         // Instant payouts require a debit card — check eligibility
@@ -404,13 +415,6 @@ export const requestPayout = action({
             }
         }
 
-        // Calculate fee for instant (1.5%, min $0.50)
-        const feeCharged =
-            method === "instant" ? Math.max(Math.round(amount * 0.015), 50) : 0;
-
-        const payoutAmount =
-            method === "instant" ? amount - feeCharged : amount;
-
         const payout = await stripe.payouts.create(
             {
                 amount: payoutAmount,
@@ -424,6 +428,22 @@ export const requestPayout = action({
             },
             { stripeAccount: stripeAccount.stripeAccountId },
         );
+
+        const wondarMarkup =
+            feeCharged - Math.max(Math.round(amount * 0.015), 50);
+        // 2% fee minus Stripe's 1.5% = Wondar's 0.5%
+
+        if (wondarMarkup > 0) {
+            await stripe.transfers.create(
+                {
+                    amount: wondarMarkup,
+                    currency,
+                    destination: process.env.WONDAR_PLATFORM_STRIPE_ACCOUNT_ID!,
+                    description: `Instant payout fee markup – ${payout.id}`,
+                },
+                { stripeAccount: stripeAccount.stripeAccountId },
+            );
+        }
 
         // Save payout record to DB
         await ctx.runMutation(
