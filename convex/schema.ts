@@ -945,6 +945,16 @@ const schema = defineSchema({
         isFinal: v.optional(v.boolean()),
         createdAt: v.number(),
     }).index("by_quoteId", ["quoteId"]),
+    deletionRequests: defineTable({
+        email: v.string(),
+        status: v.union(
+            v.literal("pending"),
+            v.literal("processing"),
+            v.literal("completed"),
+            v.literal("rejected"),
+        ),
+        updatedAt: v.number(),
+    }).index("by_email", ["email"]),
 });
 
 export default schema;

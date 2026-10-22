@@ -12,6 +12,7 @@ import { TesterWelcomeEmail } from "./utils/emails/testers/TesterWelcomeEmail";
 import { TesterConfirmationEmail } from "./utils/emails/testers/TesterConfirmationEmail";
 import React from "react";
 import TesterRejectionEmail from "./utils/emails/testers/TesterRejectionEmail";
+import { DeletionRequestEmail } from "./utils/emails/deletion/DeletionRequestEmail";
 
 const PDF_URL = process.env.BETA_TEST_GUIDE_PDF_URL;
 
@@ -192,6 +193,17 @@ export const sendTesterRejection = internalAction({
             jsx: React.createElement(TesterRejectionEmail, {
                 firstName: args.firstName,
             }),
+        });
+    },
+});
+
+export const sendDeletionConfirmation = internalAction({
+    args: { email: v.string() },
+    handler: async (ctx, args) => {
+        await send(ctx, {
+            to: args.email,
+            subject: "We received your Wondar account deletion request",
+            jsx: React.createElement(DeletionRequestEmail),
         });
     },
 });
