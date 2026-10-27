@@ -13,8 +13,12 @@ import { TesterConfirmationEmail } from "./utils/emails/testers/TesterConfirmati
 import React from "react";
 import TesterRejectionEmail from "./utils/emails/testers/TesterRejectionEmail";
 import { DeletionRequestEmail } from "./utils/emails/deletion/DeletionRequestEmail";
+import BigTenGuideEmail from "./utils/emails/testers/BigTenGuideEmail";
+import BigTenWelcomeEmail from "./utils/emails/testers/BigTenWelcomeEmail";
 
 const PDF_URL = process.env.BETA_TEST_GUIDE_PDF_URL;
+const BIG_TEN_GUIDE_URL = process.env.BIG_TEN_GUIDE_PDF_URL ?? PDF_URL;
+const BIG_TEN_HERO_URL = process.env.BIG_TEN_HERO_IMAGE_URL;
 
 // 1. Get the key from environment variables
 const apiKey = process.env.RESEND_API_KEY;
@@ -204,6 +208,56 @@ export const sendDeletionConfirmation = internalAction({
             to: args.email,
             subject: "We received your Wondar account deletion request",
             jsx: React.createElement(DeletionRequestEmail),
+        });
+    },
+});
+
+// ── Wondar Big Ten: email 1 (welcome) and email 2 (guide) ─────────
+const bigTenArgs = { email: v.string(), firstName: v.optional(v.string()) };
+
+export const sendBigTenWelcome = internalAction({
+    args: bigTenArgs,
+    handler: async (ctx, args) => {
+        await resend.sendEmail(ctx, {
+            from: "Wondar <hello@wondarapp.com>",
+            to: args.email,
+            subject: "Welcome to the Wondar Big Ten 🎉",
+            html: await render(
+                React.createElement(BigTenWelcomeEmail, {
+                    firstName: args.firstName,
+                    heroImageUrl: BIG_TEN_HERO_URL,
+                }),
+            ),
+        });
+    },
+});
+
+export const sendBigTenGuide = internalAction({
+    args: bigTenArgs,
+    handler: async (ctx, args) => {
+        if (!BIG_TEN_GUIDE_URL) {
+            throw new Error("BIG_TEN_GUIDE_PDF_URL is not set");
+        }
+        const { Resend } = await import("resend");
+        const resend = new Resend(process.env.RESEND_API_KEY);
+
+        const html = await render(
+            React.createElement(BigTenGuideEmail, {
+                firstName: args.firstName ?? "there",
+            }),
+        );
+
+        await resend.emails.send({
+            from: "Wondar <hello@wondarapp.com>",
+            to: args.email,
+            subject: "Your Wondar Big Ten starter guide",
+            html,
+            attachments: [
+                {
+                    filename: "wondar_big_ten_guide.pdf",
+                    path: BIG_TEN_GUIDE_URL,
+                },
+            ],
         });
     },
 });

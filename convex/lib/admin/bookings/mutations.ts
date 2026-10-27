@@ -3,6 +3,7 @@ import { internalMutation, mutation } from "../../../_generated/server";
 import { BookingStatusUnion, DisputeOutcomeUnion } from "@convex/unions";
 import { requireAdminProfile } from "@convex/utils/helpers/auth";
 import { sendNotification } from "@convex/lib/notifications";
+import { throwAppError } from "@convex/utils/helpers/error";
 
 // ── internalMutation — called from Stripe action, no auth ctx available
 export const resolveDispute = internalMutation({
@@ -18,10 +19,13 @@ export const resolveDispute = internalMutation({
         const booking = await ctx.db.get(args.bookingId);
         if (!booking) throw new Error("Booking not found");
 
+        const noPay = booking.disputeReason === "CLIENT_NO_PAY";
         const newStatus =
             args.outcome === "CLIENT_FAVORED" || args.outcome === "SPLIT"
                 ? "REFUNDED"
-                : "COMPLETED";
+                : noPay
+                  ? "CANCELLED" // service never happened; creative keeps what was paid
+                  : "COMPLETED";
 
         const now = Date.now();
         const releasing = newStatus === "COMPLETED";
@@ -36,6 +40,9 @@ export const resolveDispute = internalMutation({
                 outcome: args.outcome,
                 note: args.resolutionNote,
             },
+            ...(newStatus === "CANCELLED"
+                ? { cancelReason: "CLIENT_NO_PAY", cancelledAt: now }
+                : {}),
             ...(needsFinalPayment
                 ? {
                       paymentPhase: "FINAL_PENDING" as const,

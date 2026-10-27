@@ -7,9 +7,11 @@ import {
     formatCents,
     formatDate,
     formatTime,
+    hasClientPaid,
 } from "@convex/utils/helpers/bookings";
 import { internal } from "@convex/_generated/api";
 import { checkAndFlagCancellations } from "@convex/utils/helpers/cancellations";
+import { throwAppError } from "@convex/utils/helpers/error";
 
 // ==========================================
 // HELPERS
@@ -46,13 +48,13 @@ export const createBooking = mutation({
     },
     handler: async (ctx, args) => {
         const clientId = await getAuthUserId(ctx);
-        if (!clientId) throw new Error("Not authenticated");
+        if (!clientId) throwAppError("Not authenticated");
 
         const service = await ctx.db.get(args.serviceId);
-        if (!service) throw new Error("Service not found");
+        if (!service) throwAppError("Service not found");
 
         if (service.userId !== args.creativeId) {
-            throw new Error("Service does not belong to this creative");
+            throwAppError("Service does not belong to this creative");
         }
 
         // Calculate fees
@@ -61,10 +63,10 @@ export const createBooking = mutation({
         const endTime = args.startTime + service.duration;
 
         if (!Number.isInteger(serviceFee) || serviceFee <= 0) {
-            throw new Error("Invalid service fee");
+            throwAppError("Invalid service fee");
         }
         if (!Number.isInteger(bookingFee) || bookingFee < 0) {
-            throw new Error("Invalid booking fee");
+            throwAppError("Invalid booking fee");
         }
 
         // Pull live config, then snapshot into booking
@@ -102,7 +104,7 @@ export const createBooking = mutation({
         );
 
         if (bookingFee < minBookingFee || bookingFee > maxBookingFee) {
-            throw new Error(
+            throwAppError(
                 `Booking fee must be between ${minBookingPercent}% and ${maxBookingPercent}% of service fee.`,
             );
         }
@@ -178,15 +180,6 @@ export const createBooking = mutation({
         const serviceDate = formatDate(args.dateBooked);
         const timeWindow = `${formatTime(args.startTime)} → ${formatTime(endTime)}`;
 
-        if (service) {
-            await ctx.db.patch(service._id, {
-                stats: {
-                    ...service.stats,
-                    timesOrdered: (service.stats?.timesOrdered || 0) + 1,
-                },
-            });
-        }
-
         // Notify creative
         await sendNotification(ctx, {
             userId: args.creativeId,
@@ -218,7 +211,7 @@ export const createBooking = mutation({
                     `   Booking Fee:     ${formatCents(bookingFee)}`,
                     `   Platform Fee:    ${formatCents(platformClientFeeAmount)} (client ${clientFeePercent}%)`,
                     `   Due Now:         ${formatCents(upfrontChargeAmount)}`,
-                    `   Due After:       ${formatCents(remainingDueAmount)}`,
+                    `   Due Before Service:       ${formatCents(remainingDueAmount)}`,
                     ``,
                     args.note ? `📝 Note: ${args.note}` : null,
                     `ℹ️ Awaiting creative acceptance.`,
@@ -237,6 +230,7 @@ export const createBooking = mutation({
             bookingFee,
             platformClientFeeAmount,
             dueNow: upfrontChargeAmount,
+            dueBeforeService: remainingDueAmount,
             dueAfterCompletion: remainingDueAmount,
         };
     },
@@ -427,15 +421,15 @@ export const cancelBooking = mutation({
     },
     handler: async (ctx, { bookingId, reason }) => {
         const clientId = await getAuthUserId(ctx);
-        if (!clientId) throw new Error("Not authenticated");
+        if (!clientId) throwAppError("Not authenticated");
 
         const booking = await ctx.db.get(bookingId);
-        if (!booking) throw new Error("Booking not found");
+        if (!booking) throwAppError("Booking not found");
 
-        if (booking.clientId !== clientId) throw new Error("Not authorized");
+        if (booking.clientId !== clientId) throwAppError("Not authorized");
 
         if (booking.status === "COMPLETED" || booking.status === "CANCELLED") {
-            throw new Error("Cannot cancel this booking");
+            throwAppError("Cannot cancel this booking");
         }
 
         await ctx.db.patch(bookingId, {
@@ -480,7 +474,7 @@ export const cancelBooking = mutation({
             await ctx.db.patch(booking.serviceId, {
                 stats: {
                     ...service.stats,
-                    timesCancelled: service.stats.timesCancelled + 1,
+                    timesCancelled: (service.stats?.timesCancelled || 0) + 1,
                 },
             });
         }
@@ -524,8 +518,8 @@ export const cancelBooking = mutation({
                     `📝 Reason: ${reason}`,
                     ``,
                     `💰 Payment Phase: ${booking.paymentPhase}`,
-                    booking.paymentPhase === "UPFRONT_PAID"
-                        ? `⚠️ Client already paid upfront. Review refund eligibility.`
+                    hasClientPaid(booking.paymentPhase)
+                        ? `⚠️ Client has already paid (${booking.paymentPhase}). Review refund.`
                         : `ℹ️ No payment was taken.`,
                 ]
                     .filter(Boolean)

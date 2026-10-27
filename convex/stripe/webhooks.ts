@@ -171,16 +171,20 @@ export const handlePaymentSucceeded = internalMutation({
 
             await sendNotification(ctx, {
                 userId: booking.clientId,
-                title: "Payment Confirmed",
-                body: "Your upfront payment was received. The creative will start your service soon.",
+                title: "Booking Fee Received",
+                body: "Your slot is locked in. Please pay the remaining balance before your appointment so the creative can start.",
                 type: "BOOKING",
-                meta: { screen: "booking_detail", id: booking._id },
+                meta: {
+                    screen: "booking_detail",
+                    id: booking._id,
+                    action: "PAY_FINAL",
+                },
             });
 
             await sendNotification(ctx, {
                 userId: booking.creativeId,
-                title: "Upfront Payment Received",
-                body: "The client has completed their upfront payment. You're good to go.",
+                title: "Booking Fee Received",
+                body: "The client paid the booking fee. You can start once they've paid the remaining balance.",
                 type: "BOOKING",
                 meta: { screen: "booking_detail", id: booking._id },
             });
@@ -201,16 +205,16 @@ export const handlePaymentSucceeded = internalMutation({
 
             await sendNotification(ctx, {
                 userId: booking.clientId,
-                title: "Payment Complete",
-                body: "Your final payment was received. Booking fully settled.",
+                title: "Fully Paid ✅",
+                body: "Your final payment was received. You're all set for your appointment.",
                 type: "BOOKING",
                 meta: { screen: "booking_detail", id: booking._id },
             });
 
             await sendNotification(ctx, {
                 userId: booking.creativeId,
-                title: "Final Payment Received",
-                body: "The client has completed their final payment. Booking fully settled.",
+                title: "Client Paid in Full ✅",
+                body: "The client has paid in full. You can start the service at the scheduled time.",
                 type: "BOOKING",
                 meta: { screen: "booking_detail", id: booking._id },
             });

@@ -76,3 +76,9 @@ export async function enrichBooking(ctx: QueryCtx, booking: Doc<"bookings">) {
             : null,
     };
 }
+
+// ...existing formatCents / formatDate / formatTime
+export const hasClientPaid = (phase?: string) =>
+    phase === "UPFRONT_PAID" ||
+    phase === "FINAL_PENDING" ||
+    phase === "FULLY_SETTLED";

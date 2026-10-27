@@ -60,7 +60,7 @@ export const ServiceDurationUnitUnion = v.union(
 export const BookingStatusUnion = v.union(
     v.literal("PENDING"), // Client created, waiting for creative to accept/decline
     v.literal("CONFIRMED"), // Creative accepted, waiting for service date/time
-    v.literal("PAID"), // Client paid, waiting for service date
+    v.literal("PAID"), // Booking fee paid, balance may still be due
     v.literal("IN_PROGRESS"), // Service is happening (auto or manual)
     v.literal("COMPLETED"), // Service done (auto or manual)
     v.literal("CANCELLED"), // Cancelled by client, creative, or system

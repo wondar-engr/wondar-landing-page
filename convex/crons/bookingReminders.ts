@@ -6,6 +6,7 @@ import { getBookingContext } from "./bookingContext";
 
 const MIN = 60 * 1000;
 const NO_SHOW_GRACE_MS = 30 * 60 * 1000; // keep equal to GRACE_CREATIVE_NO_SHOW_MS in bookingFns.ts
+const UNPAID_GRACE_MS = 20 * 60 * 1000; // keep equal to GRACE_UNPAID_FINAL_MS in bookingFns.ts
 
 const PAYMENT_FAST_WINDOW_MS = 2 * 60 * 60 * 1000;
 const PAYMENT_FAST_EVERY_MS = 30 * 60 * 1000;
@@ -18,6 +19,7 @@ const CLIENT_STAGES = [
     { stage: 1, at: -24 * 60 * MIN },
     { stage: 2, at: -60 * MIN },
     { stage: 3, at: -15 * MIN },
+    { stage: 4, at: 0 }, // start time: only sent while the balance is unpaid
 ];
 const CLIENT_SEND_WINDOW_MS = 10 * MIN; // stages crossed longer ago than this are skipped silently
 
@@ -66,7 +68,7 @@ function startReminderCopy(
 }
 
 function clientDueStage(offsetMs: number) {
-    if (offsetMs >= 0) return null; // started or past: the lifecycle job owns it
+    if (offsetMs >= UNPAID_GRACE_MS) return null; // past grace: the lifecycle job owns it
     let due = { stage: 0, crossedAgoMs: 0 };
     for (const s of CLIENT_STAGES) {
         if (offsetMs >= s.at) {
@@ -83,6 +85,7 @@ function clientReminderCopy(
     serviceName: string,
     timeWindow: string,
     upfrontDue: string | null, // set when the client still has to pay upfront
+    balanceDue: string | null, // set when upfront is paid but the balance isn't
 ) {
     const mins = Math.max(Math.round(-offsetMs / MIN), 1);
     const when =
@@ -97,6 +100,19 @@ function clientReminderCopy(
         return {
             title: "Pay your upfront to keep your booking",
             body: `${booking[0].toUpperCase()}${booking.slice(1)} is ${when}. Pay your upfront ${upfrontDue} to secure it. Unpaid bookings are cancelled when they start.`,
+        };
+    }
+
+    if (balanceDue) {
+        return {
+            title:
+                stage === 4
+                    ? "Pay now to keep your booking"
+                    : "Pay your balance before your appointment",
+            body:
+                stage === 4
+                    ? `Your appointment with ${creativeName} for "${serviceName}" is starting and the remaining ${balanceDue} is unpaid. Pay now or the booking is flagged for review.`
+                    : `${booking[0].toUpperCase()}${booking.slice(1)} is ${when}. Pay the remaining ${balanceDue} so ${creativeName} can start. Unpaid bookings are flagged for review shortly after the start time.`,
         };
     }
 
@@ -132,7 +148,7 @@ export const sendStartReminders = internalMutation({
         ]);
 
         for (const booking of [...paid, ...confirmed]) {
-            if (booking.paymentPhase !== "UPFRONT_PAID") continue;
+            if (booking.paymentPhase !== "FULLY_SETTLED") continue;
 
             const startMs = bookingStartToUtcMs(
                 booking.dateBooked,
@@ -298,9 +314,11 @@ export const sendClientReminders = internalMutation({
             const upfrontPending =
                 booking.status === "CONFIRMED" &&
                 booking.paymentPhase === "UPFRONT_PENDING";
-            const upfrontPaid = booking.paymentPhase === "UPFRONT_PAID";
-            if (!upfrontPending && !upfrontPaid) continue;
-
+            const balanceDue =
+                booking.status === "PAID" &&
+                booking.paymentPhase === "UPFRONT_PAID";
+            const fullyPaid = booking.paymentPhase === "FULLY_SETTLED";
+            if (!upfrontPending && !balanceDue && !fullyPaid) continue;
             const startMs = bookingStartToUtcMs(
                 booking.dateBooked,
                 booking.startTime,
@@ -311,7 +329,8 @@ export const sendClientReminders = internalMutation({
             const due = clientDueStage(offsetMs);
 
             if (due === null) continue;
-
+            // "Pay now" stage only matters while the balance is unpaid
+            if (due.stage === 4 && !balanceDue) continue;
             // Nothing due yet: if an earlier run sent some, the booking was
             // rescheduled later, so re-arm the ladder
             if (due.stage === 0) {
@@ -339,6 +358,9 @@ export const sendClientReminders = internalMutation({
                 upfrontPending
                     ? `$${(booking.upfrontChargeAmount / 100).toFixed(2)}`
                     : null,
+                balanceDue
+                    ? `$${(booking.remainingDueAmount / 100).toFixed(2)}`
+                    : null,
             );
 
             await sendNotification(ctx, {
@@ -350,6 +372,7 @@ export const sendClientReminders = internalMutation({
                     screen: "booking_detail",
                     id: booking._id,
                     ...(upfrontPending ? { action: "PAY_UPFRONT" } : {}),
+                    ...(balanceDue ? { action: "PAY_FINAL" } : {}),
                 },
             });
         }

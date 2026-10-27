@@ -8,10 +8,12 @@ import {
     formatCents,
     formatDate,
     formatTime,
+    hasClientPaid,
 } from "@convex/utils/helpers/bookings";
 import { bookingEndToUtcMs, bookingStartToUtcMs } from "@convex/utils/time";
 import { requireAuthUserId } from "@convex/utils/helpers/auth";
 import { checkAndFlagCancellations } from "@convex/utils/helpers/cancellations";
+import { throwAppError } from "@convex/utils/helpers/error";
 
 // ==========================================
 // GET CREATIVE BOOKINGS
@@ -119,14 +121,13 @@ export const acceptBooking = mutation({
     },
     handler: async (ctx, { bookingId }) => {
         const creativeId = await getAuthUserId(ctx);
-        if (!creativeId) throw new Error("Not authenticated");
+        if (!creativeId) throwAppError("Not authenticated");
 
         const booking = await ctx.db.get(bookingId);
-        if (!booking) throw new Error("Booking not found");
-        if (booking.creativeId !== creativeId)
-            throw new Error("Not authorized");
+        if (!booking) throwAppError("Booking not found");
+        if (booking.creativeId !== creativeId) throwAppError("Not authorized");
         if (booking.status !== "PENDING")
-            throw new Error("Booking is not pending");
+            throwAppError("Booking is not pending");
 
         await ctx.db.patch(bookingId, {
             status: "CONFIRMED",
@@ -174,7 +175,7 @@ export const acceptBooking = mutation({
         await sendNotification(ctx, {
             userId: booking.clientId,
             title: "Booking Accepted ✅",
-            body: `${creativeName} accepted your booking. Please pay ${booking.upfrontChargeAmount ? `$${(booking.upfrontChargeAmount / 100).toFixed(2)}` : "the upfront amount"} to secure your slot.`,
+            body: `${creativeName} accepted your booking. Please pay ${booking.upfrontChargeAmount ? `$${(booking.upfrontChargeAmount / 100).toFixed(2)}` : "the upfront amount"} to secure your slot. The balance of ${formatCents(booking.remainingDueAmount)} is due before the service starts.`,
             type: "BOOKING",
             meta: {
                 screen: "booking_detail",
@@ -204,7 +205,7 @@ export const acceptBooking = mutation({
                     ``,
                     `💰 Payment Due`,
                     `   Upfront:    ${upfrontFormatted}`,
-                    `   Remaining:  ${formatCents(booking.remainingDueAmount)}`,
+                    `   Due before service:  ${formatCents(booking.remainingDueAmount)}`,
                     ``,
                     `ℹ️ Awaiting client upfront payment to confirm slot.`,
                 ].join("\n"),
@@ -217,6 +218,7 @@ export const acceptBooking = mutation({
             status: "CONFIRMED",
             paymentPhase: "UPFRONT_PENDING",
             dueNow: booking.upfrontChargeAmount,
+            dueBeforeService: booking.remainingDueAmount,
             dueAfterCompletion: booking.remainingDueAmount,
         };
     },
@@ -336,16 +338,15 @@ export const startService = mutation({
         if (!creativeId) throw new Error("Not authenticated");
 
         const booking = await ctx.db.get(bookingId);
-        if (!booking) throw new Error("Booking not found");
-        if (booking.creativeId !== creativeId)
-            throw new Error("Not authorized");
+        if (!booking) throwAppError("Booking not found");
+        if (booking.creativeId !== creativeId) throwAppError("Not authorized");
 
         if (booking.status !== "PAID")
-            throw new Error("Cannot start this booking");
+            throwAppError("Cannot start this booking");
 
-        if (booking.paymentPhase !== "UPFRONT_PAID") {
-            throw new Error(
-                "Upfront payment must be completed before starting",
+        if (booking.paymentPhase !== "FULLY_SETTLED") {
+            throwAppError(
+                "The client must complete both payments before the service can start",
             );
         }
 
@@ -365,12 +366,12 @@ export const startService = mutation({
         const oneHourBefore = bookingStartMs - 60 * 60 * 1000;
 
         if (now < oneHourBefore) {
-            throw new Error(
+            throwAppError(
                 "You can only start the service within 1 hour of the scheduled time",
             );
         }
         if (now > bookingEndMs) {
-            throw new Error("The booking window has already passed");
+            throwAppError("The booking window has already passed");
         }
 
         await ctx.db.patch(bookingId, {
@@ -429,7 +430,7 @@ export const startService = mutation({
                     `🕐 Time:       ${timeWindow} (${booking.clientTimezone ?? "UTC"})`,
                     ``,
                     `⏱ Started at: ${new Date(now).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`,
-                    `💰 Remaining due after completion: ${formatCents(booking.remainingDueAmount)}`,
+                    `💰 Fully paid ✅`,
                 ].join("\n"),
                 category: "BOOKINGS",
             },
@@ -461,23 +462,32 @@ export const completeService = mutation({
     },
     handler: async (ctx, { bookingId, jobCompletionDocs }) => {
         const creativeId = await getAuthUserId(ctx);
-        if (!creativeId) throw new Error("Not authenticated");
+        if (!creativeId) throwAppError("Not authenticated");
 
         const booking = await ctx.db.get(bookingId);
-        if (!booking) throw new Error("Booking not found");
-        if (booking.creativeId !== creativeId)
-            throw new Error("Not authorized");
+        if (!booking) throwAppError("Booking not found");
+        if (booking.creativeId !== creativeId) throwAppError("Not authorized");
         if (booking.status !== "IN_PROGRESS")
-            throw new Error("Cannot complete this booking");
+            throwAppError("Cannot complete this booking");
+
+        // Photos already attached on the booking count too
+        const docs = jobCompletionDocs ?? booking.jobCompletionDocs ?? [];
+        if (docs.length === 0) {
+            throwAppError(
+                "Add at least one completion photo before finishing the service.",
+            );
+        }
 
         const now = Date.now();
 
+        const settled = booking.paymentPhase === "FULLY_SETTLED";
         await ctx.db.patch(bookingId, {
             status: "COMPLETED",
-            paymentPhase: "FINAL_PENDING",
+            // legacy bookings only; new flow is already settled
+            ...(!settled && { paymentPhase: "FINAL_PENDING" as const }),
             completedAt: now,
             completedBy: "CREATIVE",
-            jobCompletionDocs: jobCompletionDocs ?? [],
+            jobCompletionDocs: docs,
             updatedAt: now,
         });
 
@@ -520,7 +530,9 @@ export const completeService = mutation({
             await sendNotification(ctx, {
                 userId: booking.clientId,
                 title: "Service Completed! ⭐",
-                body: `${creativeName} has marked your service as complete. Please make your final payment to complete the booking. How was your experience? Leave a review!`,
+                body: settled
+                    ? `${creativeName} has marked your service as complete. How was your experience? Leave a review!`
+                    : `${creativeName} has marked your service as complete. Please make your final payment to complete the booking. How was your experience? Leave a review!`,
                 type: "BOOKING",
                 meta: { screen: "booking_review", id: bookingId },
                 metaUser: creativeId,
@@ -546,9 +558,11 @@ export const completeService = mutation({
                     `🕐 Time:       ${timeWindow} (${booking.clientTimezone ?? "UTC"})`,
                     ``,
                     `📎 Completion Docs: ${docsCount} file${docsCount !== 1 ? "s" : ""} uploaded`,
-                    `💰 Final Payment Due: ${formatCents(booking.remainingDueAmount)}`,
+                    settled
+                        ? `💰 Payment: fully settled before service`
+                        : `💰 Final Payment Due: ${formatCents(booking.remainingDueAmount)}`,
                     ``,
-                    `ℹ️ Awaiting client's final payment and review.`,
+                    `ℹ️ Awaiting client review.`,
                 ].join("\n"),
                 category: "BOOKINGS",
             },
@@ -569,16 +583,15 @@ export const cancelBooking = mutation({
     },
     handler: async (ctx, { bookingId, reason }) => {
         const creativeId = await getAuthUserId(ctx);
-        if (!creativeId) throw new Error("Not authenticated");
+        if (!creativeId) throwAppError("Not authenticated");
 
         const booking = await ctx.db.get(bookingId);
-        if (!booking) throw new Error("Booking not found");
-        if (booking.creativeId !== creativeId)
-            throw new Error("Not authorized");
+        if (!booking) throwAppError("Booking not found");
+        if (booking.creativeId !== creativeId) throwAppError("Not authorized");
 
         // Can only cancel if not completed or already cancelled
         if (booking.status === "COMPLETED" || booking.status === "CANCELLED") {
-            throw new Error("Cannot cancel this booking");
+            throwAppError("Cannot cancel this booking");
         }
 
         await ctx.db.patch(bookingId, {
@@ -659,8 +672,8 @@ export const cancelBooking = mutation({
                     ``,
                     `📝 Reason: ${reason}`,
                     `💰 Payment Phase: ${booking.paymentPhase}`,
-                    booking.paymentPhase === "UPFRONT_PAID"
-                        ? `⚠️ Client already paid upfront. Review refund eligibility.`
+                    hasClientPaid(booking.paymentPhase)
+                        ? `⚠️ Client has already paid (${booking.paymentPhase}). Review refund.`
                         : `ℹ️ No payment was taken.`,
                 ]
                     .filter(Boolean)
@@ -694,36 +707,18 @@ export const updateJobCompletionDocs = mutation({
     handler: async (ctx, args) => {
         const userId = await requireAuthUserId(ctx);
         const booking = await ctx.db.get(args.bookingId);
-        if (!booking) throw new Error("Booking not found");
-        if (booking.creativeId !== userId) throw new Error("Unauthorized");
-        if (
-            booking.status !== "COMPLETED" &&
-            booking.status !== "IN_PROGRESS"
-        ) {
-            throw new Error("Cannot update docs at this stage");
+        if (!booking) throwAppError("Booking not found");
+        if (booking.creativeId !== userId) throwAppError("Unauthorized");
+
+        if (booking.status !== "IN_PROGRESS") {
+            throwAppError(
+                "Completion photos can only be changed while the service is in progress.",
+            );
         }
 
         await ctx.db.patch(args.bookingId, {
             jobCompletionDocs: args.docs,
             updatedAt: Date.now(),
-        });
-        // ✅ Fetch creative name first
-        const creativeProfile = await ctx.db
-            .query("profiles")
-            .withIndex("by_userId", q => q.eq("userId", userId))
-            .first();
-
-        const creativeName = creativeProfile
-            ? `${creativeProfile.firstName ?? ""} ${creativeProfile.lastName ?? ""}`.trim()
-            : "Your creative";
-
-        await sendNotification(ctx, {
-            userId: booking.clientId,
-            title: "Job Completion Docs Updated",
-            body: `${creativeName} has updated the job completion documents. Please review them.`,
-            type: "BOOKING",
-            meta: { screen: "booking_detail", id: args.bookingId },
-            metaUser: userId,
         });
 
         return { success: true };

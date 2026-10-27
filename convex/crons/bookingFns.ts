@@ -1,18 +1,12 @@
 import { sendNotification } from "../lib/notifications";
 import { internalMutation } from "../_generated/server";
 import { internal } from "@convex/_generated/api";
-import { MutationCtx } from "../_generated/server";
-import { Id } from "@convex/_generated/dataModel";
-import {
-    bookingStartToUtcMs,
-    bookingEndToUtcMs,
-    formatBookingDate,
-    formatBookingTimeWindow,
-} from "@convex/utils/time";
+import { bookingStartToUtcMs, bookingEndToUtcMs } from "@convex/utils/time";
 import { getBookingContext } from "./bookingContext";
 
 const GRACE_CREATIVE_NO_SHOW_MS = 30 * 60 * 1000;
 const GRACE_AUTO_COMPLETE_MS = 60 * 60 * 1000;
+const GRACE_UNPAID_FINAL_MS = 20 * 60 * 1000;
 const DISPUTE_OVERDUE_MS = 48 * 60 * 60 * 1000;
 
 export const processBookingLifecycle = internalMutation({
@@ -106,7 +100,7 @@ export const processBookingLifecycle = internalMutation({
                 continue;
             }
 
-            // ── 2. CONFIRMED + UPFRONT_PENDING — client never paid ───
+            // ── 2a. CONFIRMED + UPFRONT_PENDING — client never paid ───
             if (
                 booking.status === "CONFIRMED" &&
                 booking.paymentPhase === "UPFRONT_PENDING" &&
@@ -162,10 +156,70 @@ export const processBookingLifecycle = internalMutation({
                 continue;
             }
 
+            // ── 2b. PAID — balance still unpaid after start + grace ───
+            if (
+                booking.status === "PAID" &&
+                booking.paymentPhase === "UPFRONT_PAID" &&
+                now > startMs + GRACE_UNPAID_FINAL_MS
+            ) {
+                await ctx.db.patch(booking._id, {
+                    status: "DISPUTE",
+                    disputeReason: "CLIENT_NO_PAY",
+                    disputeOpenedBy: "SYSTEM",
+                    disputeOpenedAt: now,
+                    updatedAt: now,
+                });
+
+                const ctx_ = await getBookingContext(ctx, booking);
+                const due = `$${(booking.remainingDueAmount / 100).toFixed(2)}`;
+
+                await sendNotification(ctx, {
+                    userId: booking.clientId,
+                    title: "Booking Under Review",
+                    body: `Your booking for "${ctx_.serviceName}" was flagged because the remaining ${due} wasn't paid. Our team will review it within 48 hours.`,
+                    type: "BOOKING",
+                    meta: { screen: "booking_detail", id: booking._id },
+                });
+
+                await sendNotification(ctx, {
+                    userId: booking.creativeId,
+                    title: "Booking Flagged — Balance Unpaid",
+                    body: `${ctx_.clientName} didn't pay the remaining balance for "${ctx_.serviceName}", so the service couldn't start. Our team will review within 48 hours.`,
+                    type: "BOOKING",
+                    meta: { screen: "booking_detail", id: booking._id },
+                });
+
+                await ctx.scheduler.runAfter(
+                    0,
+                    internal.lib.appActions.notifications
+                        .sendTelegramNotification,
+                    {
+                        text: [
+                            `💸 BALANCE UNPAID — Dispute Auto-Opened`,
+                            ``,
+                            `📋 Booking ID: ${booking._id}`,
+                            `🎨 Creative:   ${ctx_.creativeName}`,
+                            `👤 Client:     ${ctx_.clientName}`,
+                            `🛠 Service:    ${ctx_.serviceName}`,
+                            `📅 Date:       ${ctx_.serviceDate}`,
+                            `🕐 Time:       ${ctx_.timeWindow}`,
+                            ``,
+                            `💰 Unpaid: ${due}`,
+                            `   Booking fee paid. Balance unpaid 20 min after start.`,
+                            ``,
+                            `🔧 Action needed: decide full / partial / no refund.`,
+                        ].join("\n"),
+                        category: "DISPUTES",
+                    },
+                );
+
+                continue;
+            }
+
             // ── 3. PAID — creative no-show (30min grace) ─────────────
             if (
                 (booking.status === "CONFIRMED" || booking.status === "PAID") &&
-                booking.paymentPhase === "UPFRONT_PAID" &&
+                booking.paymentPhase === "FULLY_SETTLED" &&
                 now > startMs + GRACE_CREATIVE_NO_SHOW_MS
             ) {
                 await ctx.db.patch(booking._id, {
@@ -234,7 +288,7 @@ export const processBookingLifecycle = internalMutation({
                             `🕐 Time:        ${ctx_.timeWindow}`,
                             ``,
                             `⚠️ No-Show Count: ${newNoShowCount}`,
-                            `   Client paid upfront. Creative never started.`,
+                            `   Client paid in full. Creative never started.`,
                             `   Grace period (30 min) elapsed.`,
                             ``,
                             `🔧 Action needed: Review and process refund if applicable.`,
@@ -275,32 +329,48 @@ export const processBookingLifecycle = internalMutation({
                 booking.status === "IN_PROGRESS" &&
                 now > endMs + GRACE_AUTO_COMPLETE_MS
             ) {
+                const settled = booking.paymentPhase === "FULLY_SETTLED";
                 await ctx.db.patch(booking._id, {
                     status: "COMPLETED",
-                    paymentPhase: "FINAL_PENDING",
+                    ...(!settled && { paymentPhase: "FINAL_PENDING" as const }),
                     completedAt: now,
                     completedBy: "SYSTEM",
                     updatedAt: now,
                 });
+
+                const service = await ctx.db.get(booking.serviceId);
+                if (service) {
+                    await ctx.db.patch(service._id, {
+                        stats: {
+                            ...service.stats,
+                            timesCompleted:
+                                (service.stats.timesCompleted ?? 0) + 1,
+                        },
+                    });
+                }
 
                 const ctx_ = await getBookingContext(ctx, booking);
 
                 await sendNotification(ctx, {
                     userId: booking.clientId,
                     title: "Service Complete",
-                    body: `Your session for "${ctx_.serviceName}" is complete. Please complete your final payment.`,
+                    body: settled
+                        ? `Your session for "${ctx_.serviceName}" is complete. How did it go? Leave a review!`
+                        : `Your session for "${ctx_.serviceName}" is complete. Please complete your final payment.`,
                     type: "BOOKING",
                     meta: {
                         screen: "booking_detail",
                         id: booking._id,
-                        action: "PAY_FINAL",
+                        ...(!settled && { action: "PAY_FINAL" }),
                     },
                 });
 
                 await sendNotification(ctx, {
                     userId: booking.creativeId,
                     title: "Service Auto-Completed",
-                    body: `Your session with ${ctx_.clientName} was auto-completed. Awaiting their final payment.`,
+                    body: settled
+                        ? `Your session with ${ctx_.clientName} was auto-completed.`
+                        : `Your session with ${ctx_.clientName} was auto-completed. Awaiting their final payment.`,
                     type: "BOOKING",
                     meta: { screen: "booking_detail", id: booking._id },
                 });
@@ -322,7 +392,9 @@ export const processBookingLifecycle = internalMutation({
                             ``,
                             `ℹ️ Neither party marked the service complete.`,
                             `   System auto-completed after 60 min grace.`,
-                            `   Awaiting client's final payment.`,
+                            settled
+                                ? `   Already fully paid.`
+                                : `   Awaiting client's final payment.`,
                         ].join("\n"),
                         category: "BOOKINGS",
                     },
