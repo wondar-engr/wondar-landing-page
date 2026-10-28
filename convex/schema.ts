@@ -906,6 +906,10 @@ const schema = defineSchema({
             v.literal("resolved"),
             v.literal("closed"),
         ),
+        notionUrl: v.optional(v.string()),
+        updatedAt: v.optional(v.number()),
+        resolvedBy: v.optional(v.id("profiles")),
+        resolvedAt: v.optional(v.number()),
     })
         .index("by_userId", ["userId"])
         .index("by_type", ["type"])
