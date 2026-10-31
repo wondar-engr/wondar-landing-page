@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { ActionCtx } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { syncAccountBalance } from "./accountHandlers";
+import { getChargeProcessingFee } from "../../lib/stripe/fees";
 
 export async function handlePaymentIntentSucceeded(
     ctx: ActionCtx,
@@ -16,13 +17,36 @@ export async function handlePaymentIntentSucceeded(
             ? paymentIntent.latest_charge
             : (paymentIntent.latest_charge?.id ?? undefined);
 
-    await ctx.runMutation(internal.stripe.webhooks.handlePaymentSucceeded, {
-        stripePaymentIntentId: paymentIntent.id,
-        stripeChargeId,
-        amount: paymentIntent.amount,
-        currency: paymentIntent.currency,
-        metadata: paymentIntent.metadata,
-    });
+    const result = await ctx.runMutation(
+        internal.stripe.webhooks.handlePaymentSucceeded,
+        {
+            stripePaymentIntentId: paymentIntent.id,
+            stripeChargeId,
+            amount: paymentIntent.amount,
+            currency: paymentIntent.currency,
+            metadata: paymentIntent.metadata,
+        },
+    );
+
+    // Record what Stripe charged Wondar for this payment. The ledger can be
+    // backfilled, so a failure here must not fail the webhook.
+    if (result.ok && result.transactionId && stripeChargeId) {
+        try {
+            const stripeFee = await getChargeProcessingFee(stripeChargeId);
+            // 0 means Stripe has not reported a fee, so leave it for the backfill
+            if (stripeFee) {
+                await ctx.runMutation(internal.stripe.ledger.recordStripeFee, {
+                    transactionId: result.transactionId,
+                    stripeFee,
+                });
+            }
+        } catch (error) {
+            console.error(
+                `[Stripe] Could not record fee for ${stripeChargeId}:`,
+                error,
+            );
+        }
+    }
 
     // ← Sync balance after payment so earnings screen updates
     // transfer_data.destination is the connected account

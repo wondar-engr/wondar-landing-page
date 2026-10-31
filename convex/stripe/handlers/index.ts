@@ -17,6 +17,7 @@ export {
     handlePayoutCreatedEvent,
     handlePayoutPaid,
     handlePayoutFailed,
+    handlePayoutCanceled,
 } from "./payoutHandlers";
 
 // Transfer handlers

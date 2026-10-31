@@ -24,6 +24,8 @@ const BIG_TEN_HERO_URL = process.env.BIG_TEN_HERO_IMAGE_URL;
 const apiKey = process.env.RESEND_API_KEY;
 
 const FROM = "Wondar <noreply@wondarapp.com>";
+// Big Ten replies go to the contact inbox, with engineering copied in
+const BIG_TEN_REPLY_TO = ["contact@wondarapp.com", "engineer@wondarapp.com"];
 
 if (!apiKey) {
     throw new Error("RESEND_API_KEY is not set in environment variables");
@@ -219,7 +221,8 @@ export const sendBigTenWelcome = internalAction({
     args: bigTenArgs,
     handler: async (ctx, args) => {
         await resend.sendEmail(ctx, {
-            from: "Wondar <hello@wondarapp.com>",
+            from: FROM,
+            replyTo: BIG_TEN_REPLY_TO,
             to: args.email,
             subject: "Welcome to the Wondar Big Ten 🎉",
             html: await render(
@@ -248,7 +251,8 @@ export const sendBigTenGuide = internalAction({
         );
 
         await resend.emails.send({
-            from: "Wondar <hello@wondarapp.com>",
+            from: FROM,
+            replyTo: BIG_TEN_REPLY_TO,
             to: args.email,
             subject: "Your Wondar Big Ten starter guide",
             html,

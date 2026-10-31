@@ -9,6 +9,7 @@ import {
     handleChargeRefunded,
     handlePayoutPaid,
     handlePayoutFailed,
+    handlePayoutCanceled,
     handleTransferCreated,
     handleTransferReversed,
     handlePayoutCreatedEvent,
@@ -226,6 +227,14 @@ export async function handleWebhookEvent(
 
             case "payout.failed":
                 await handlePayoutFailed(
+                    ctx,
+                    event.data.object as Stripe.Payout,
+                    event.account,
+                );
+                break;
+
+            case "payout.canceled":
+                await handlePayoutCanceled(
                     ctx,
                     event.data.object as Stripe.Payout,
                     event.account,

@@ -64,6 +64,7 @@ import type * as lib_stripe_customerHelpers from "../lib/stripe/customerHelpers.
 import type * as lib_stripe_customerMutations from "../lib/stripe/customerMutations.js";
 import type * as lib_stripe_customerQueries from "../lib/stripe/customerQueries.js";
 import type * as lib_stripe_earnings from "../lib/stripe/earnings.js";
+import type * as lib_stripe_fees from "../lib/stripe/fees.js";
 import type * as lib_stripe_index from "../lib/stripe/index.js";
 import type * as lib_stripe_payments from "../lib/stripe/payments.js";
 import type * as lib_stripe_testing from "../lib/stripe/testing.js";
@@ -121,6 +122,7 @@ import type * as push from "../push.js";
 import type * as r2 from "../r2.js";
 import type * as scripts_backfillOfflineSettlement from "../scripts/backfillOfflineSettlement.js";
 import type * as scripts_bigTen from "../scripts/bigTen.js";
+import type * as scripts_platformLedger from "../scripts/platformLedger.js";
 import type * as seed_systemConfig from "../seed/systemConfig.js";
 import type * as stripe_handlers_accountHandlers from "../stripe/handlers/accountHandlers.js";
 import type * as stripe_handlers_index from "../stripe/handlers/index.js";
@@ -128,6 +130,7 @@ import type * as stripe_handlers_paymentHandlers from "../stripe/handlers/paymen
 import type * as stripe_handlers_payoutHandlers from "../stripe/handlers/payoutHandlers.js";
 import type * as stripe_handlers_transferHandlers from "../stripe/handlers/transferHandlers.js";
 import type * as stripe_index from "../stripe/index.js";
+import type * as stripe_ledger from "../stripe/ledger.js";
 import type * as stripe_webhookHandler from "../stripe/webhookHandler.js";
 import type * as stripe_webhooks from "../stripe/webhooks.js";
 import type * as tests_notifications from "../tests/notifications.js";
@@ -231,6 +234,7 @@ declare const fullApi: ApiFromModules<{
   "lib/stripe/customerMutations": typeof lib_stripe_customerMutations;
   "lib/stripe/customerQueries": typeof lib_stripe_customerQueries;
   "lib/stripe/earnings": typeof lib_stripe_earnings;
+  "lib/stripe/fees": typeof lib_stripe_fees;
   "lib/stripe/index": typeof lib_stripe_index;
   "lib/stripe/payments": typeof lib_stripe_payments;
   "lib/stripe/testing": typeof lib_stripe_testing;
@@ -288,6 +292,7 @@ declare const fullApi: ApiFromModules<{
   r2: typeof r2;
   "scripts/backfillOfflineSettlement": typeof scripts_backfillOfflineSettlement;
   "scripts/bigTen": typeof scripts_bigTen;
+  "scripts/platformLedger": typeof scripts_platformLedger;
   "seed/systemConfig": typeof seed_systemConfig;
   "stripe/handlers/accountHandlers": typeof stripe_handlers_accountHandlers;
   "stripe/handlers/index": typeof stripe_handlers_index;
@@ -295,6 +300,7 @@ declare const fullApi: ApiFromModules<{
   "stripe/handlers/payoutHandlers": typeof stripe_handlers_payoutHandlers;
   "stripe/handlers/transferHandlers": typeof stripe_handlers_transferHandlers;
   "stripe/index": typeof stripe_index;
+  "stripe/ledger": typeof stripe_ledger;
   "stripe/webhookHandler": typeof stripe_webhookHandler;
   "stripe/webhooks": typeof stripe_webhooks;
   "tests/notifications": typeof tests_notifications;

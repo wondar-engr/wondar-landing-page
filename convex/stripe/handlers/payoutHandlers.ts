@@ -64,6 +64,23 @@ export async function handlePayoutFailed(
     }
 }
 
+export async function handlePayoutCanceled(
+    ctx: ActionCtx,
+    payout: Stripe.Payout,
+    stripeAccountId: string | undefined,
+) {
+    console.log(`[Stripe] Payout canceled: ${payout.id}`);
+
+    await ctx.runMutation(internal.stripe.webhooks.handlePayoutCanceled, {
+        stripePayoutId: payout.id,
+    });
+
+    // The funds are back in the balance
+    if (stripeAccountId) {
+        await syncAccountBalance(ctx, stripeAccountId);
+    }
+}
+
 export async function handleTransferCreated(
     ctx: ActionCtx,
     transfer: Stripe.Transfer,

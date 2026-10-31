@@ -1,6 +1,7 @@
 import { Heading, Img, Section, Text } from "@react-email/components";
 import * as React from "react";
 import { EmailLayout } from "../components/emailLayout";
+import { INSTANT_PAYOUT_FEE_LABEL } from "../../payoutFee";
 
 interface BigTenWelcomeEmailProps {
     firstName?: string;
@@ -9,8 +10,8 @@ interface BigTenWelcomeEmailProps {
 
 const EXPECTATIONS = [
     {
-        title: "A live profile",
-        desc: "Your profile should be complete, with at least one published service.",
+        title: "Set up a live and active profile.",
+        desc: "Your profile should include at least one published service.",
     },
     {
         title: "Connect your account with Stripe",
@@ -18,13 +19,26 @@ const EXPECTATIONS = [
     },
     {
         title: "Complete a booking process, from start to finish;",
-        desc: "Accept, complete bookings and deliver service exactly as you would for all your paying clients",
+        desc: "Accept, complete bookings and deliver service exactly as you would for all your paying clients.",
     },
     {
         title: "Leave us an HONEST feedback on your user experience - NO HOLDING BACK.",
-        desc: "Leave us quick daily user check-in reports, as well as reports on any bugs/issues you may notice in the app. Send them from inside the app or our email contact@wondarapp.com.",
+        desc: "Leave us quick daily user check-in reports, as well as reports on any bugs/issues you may notice in the app.",
     },
 ];
+
+const HIGHLIGHTS = [
+    {
+        title: "Custom quotes",
+        desc: "Clients can request a custom quote and share the budget they have in mind. You can send back a counter-offer, so you never undercharge for your work.",
+    },
+    {
+        title: "Instant payouts",
+        desc: `Withdraw from the Earnings screen and choose Instant to get your money in about 30 minutes, for a ${INSTANT_PAYOUT_FEE_LABEL}. It needs a debit card linked to your Stripe account. Standard payouts are free and arrive in about 2 business days.`,
+    },
+];
+
+const CONTACT_FIELDS = ["Phone number:", "OR Email:", "Time window:"];
 
 const Hero = ({ imageUrl }: { imageUrl?: string }) =>
     imageUrl ? (
@@ -75,17 +89,38 @@ export const BigTenWelcomeEmail = ({
             What we&apos;re asking of you
         </Heading>
         <Text style={paragraph}>
-            Take Wondar for a real run. By the end of the program, we&apos;d
-            love for you to:
+            Take Wondar for a real live run. By the end of the program,
+            we&apos;d love for you to:
         </Text>
         <ExpectationList />
+
+        <Heading as="h2" style={sectionTitle}>
+            Two features worth trying
+        </Heading>
+        <Section style={{ margin: "8px 0 24px" }}>
+            {HIGHLIGHTS.map(item => (
+                <Section key={item.title} style={expectRow}>
+                    <Text style={expectTitle}>{item.title}</Text>
+                    <Text style={expectDesc}>{item.desc}</Text>
+                </Section>
+            ))}
+        </Section>
 
         <Section style={nextCard}>
             <Text style={nextTitle}>What happens next</Text>
             <Text style={nextText}>
-                Nothing to do today. Tomorrow you&apos;ll get a second email
-                with your starter guide and step-by-step instructions on exactly
-                what to do first.
+                Please reply to this email with your most effective method of
+                contact, and the best time window to reach you.
+            </Text>
+            {CONTACT_FIELDS.map(field => (
+                <Text key={field} style={contactField}>
+                    {field}
+                </Text>
+            ))}
+            <Text style={{ ...nextText, margin: "14px 0 0" }}>
+                Next, you&apos;ll get a second email with your starter guide and
+                step-by-step instructions on exactly what to do to get started.
+                SO KEEP AN EYE OUT FOR THAT EMAIL
             </Text>
         </Section>
         <Text style={paragraph}>We appreciate you deeply.</Text>
@@ -168,6 +203,14 @@ const nextText = {
     color: "#4b5563",
     fontSize: "14px",
     lineHeight: "22px",
+    margin: "0",
+};
+const contactField = {
+    color: "#1A2E1A",
+    fontSize: "14px",
+    fontWeight: "600",
+    borderBottom: "1px dashed #9ca3af",
+    padding: "10px 0 2px",
     margin: "0",
 };
 const signature = {

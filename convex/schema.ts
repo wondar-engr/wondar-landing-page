@@ -573,7 +573,12 @@ const schema = defineSchema({
         // Final amounts
         totalCharged: v.number(), // What client paid (subtotal + clientStripeFeeShare)
         creativeEarnings: v.number(), // What creative receives
-        platformEarnings: v.number(), // What Wondar keeps
+        platformEarnings: v.number(), // What Wondar keeps (before Stripe fees)
+
+        // What Stripe charged Wondar to process this payment (cents).
+        // Read from the charge's balance transaction, so it is the real number.
+        stripeFee: v.optional(v.number()),
+        stripeFeeRecordedAt: v.optional(v.number()),
 
         // Status
         status: TransactionStatusUnion,

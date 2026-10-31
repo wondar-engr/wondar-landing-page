@@ -2,6 +2,7 @@ import { sendNotification } from "@convex/lib/notifications";
 import { internalMutation } from "../_generated/server";
 import { v } from "convex/values";
 import { internal } from "@convex/_generated/api";
+import { recordPlatformProfits, reversePlatformProfits } from "./ledger";
 
 // ==========================================
 // ACCOUNT EVENTS
@@ -141,7 +142,11 @@ export const handlePaymentSucceeded = internalMutation({
         }
 
         if (transaction.status === "SUCCEEDED") {
-            return { ok: true, alreadyProcessed: true };
+            return {
+                ok: true,
+                alreadyProcessed: true,
+                transactionId: transaction._id,
+            };
         } // idempotent
 
         // Update transaction status
@@ -160,6 +165,9 @@ export const handlePaymentSucceeded = internalMutation({
             );
             return { ok: false };
         }
+
+        // Wondar's fee stays in the platform balance, so record it here
+        await recordPlatformProfits(ctx, transaction, booking);
 
         if (transaction.phase === "UPFRONT") {
             await ctx.db.patch(booking._id, {
@@ -229,7 +237,7 @@ export const handlePaymentSucceeded = internalMutation({
             );
         }
 
-        return { ok: true };
+        return { ok: true, transactionId: transaction._id };
     },
 });
 
@@ -342,6 +350,16 @@ export const handleChargeRefunded = internalMutation({
             refundedAmount: args.amountRefunded,
             refundedAt: Date.now(),
         });
+
+        // A full refund returns Wondar's fee too. Partial refunds are left
+        // as recognised until the refund policy says how the fee is split.
+        if (isFullRefund) {
+            await reversePlatformProfits(
+                ctx,
+                transaction._id,
+                `Charge ${args.stripeChargeId} fully refunded`,
+            );
+        }
 
         // Update booking status
         const booking = await ctx.db.get(transaction.bookingId);
@@ -494,6 +512,59 @@ export const handlePayoutFailed = internalMutation({
 
         console.log(
             `[Webhook] Payout failed: ${args.stripePayoutId} - ${args.failureCode}`,
+        );
+    },
+});
+
+/**
+ * Handle payout.canceled event
+ * The funds return to the creative's Stripe balance, so the payout is closed
+ * out rather than left PENDING or IN_TRANSIT.
+ */
+export const handlePayoutCanceled = internalMutation({
+    args: { stripePayoutId: v.string() },
+    handler: async (ctx, { stripePayoutId }) => {
+        const payout = await ctx.db
+            .query("payouts")
+            .withIndex("by_stripePayoutId", q =>
+                q.eq("stripePayoutId", stripePayoutId),
+            )
+            .unique();
+
+        if (!payout) {
+            console.log(
+                `[Webhook] Payout not found for cancel: ${stripePayoutId}`,
+            );
+            return;
+        }
+
+        if (payout.status === "CANCELED") return; // idempotent
+
+        await ctx.db.patch(payout._id, {
+            status: "CANCELED",
+            updatedAt: Date.now(),
+        });
+
+        await sendNotification(ctx, {
+            userId: payout.creativeId,
+            title: "Payout Canceled",
+            body: "Your payout was canceled and the funds are back in your available balance.",
+            type: "PAYMENT",
+            meta: { screen: "earnings_payouts" },
+        });
+
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendTelegramNotification,
+            {
+                text: [
+                    `🚫 PAYOUT CANCELED`,
+                    `Payout ID: ${stripePayoutId}`,
+                    `Creative: ${payout.creativeId}`,
+                    `Amount:   $${(payout.amount / 100).toFixed(2)}`,
+                ].join("\n"),
+                category: "PAYMENTS",
+            },
         );
     },
 });

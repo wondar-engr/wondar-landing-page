@@ -6,79 +6,119 @@ interface BigTenGuideEmailProps {
     firstName?: string;
 }
 
-const APP_STORE_URL = process.env.APP_STORE_URL; // button hidden until set
 const PLAY_STORE_URL =
     "https://play.google.com/store/apps/details?id=com.wondarapp.wondarnew";
 
-type Step = { title: string; desc: string };
+type Step = {
+    title: string;
+    desc?: string;
+    creative?: string; // shown under a CREATIVES label
+    client?: string; // shown under a CLIENTS label
+};
 
 const SETUP_STEPS: Step[] = [
     {
-        title: "Set up your account",
-        desc: "Sign in with your email. We send you a one-time code, so there's no password to remember.",
+        title: "Set up your Creative or Client account",
+        desc: "Create your account and sign in with your email. We will send you a one-time code, so there's no password to remember.",
     },
     {
         title: "Allow permissions",
-        desc: "Location, notifications and your photo gallery.",
+        desc: "Location, notifications and access to your photo gallery.",
     },
     {
-        title: "Become a Creative",
-        desc: "Tap Become a Creative, then add your business name, category, location and logo.",
+        title: "Become a Creative or a Client",
+        creative:
+            "Tap Become a Creative, then add your business name, category, location and logo.",
+        client: "Tap Become a Client to book a Creative, set up your account and fill out your profile information.",
     },
     {
-        title: "Connect a Stripe account first",
-        desc: "This is how to get your booking and final payments paid successfully. (So make sure you do so before you proceed with Bio and Service information, that way you do not miss out on any bookings and payments).",
+        title: "Creatives, connect a Stripe account",
+        desc: "This is how you get your booking fees and final payments paid successfully. Make sure you do this before you proceed with your Bio and Service information, so you do not miss out on any bookings and payments.",
     },
     {
-        title: "Publish a service",
-        desc: "Add at least one service with your price, booking fee and availability.",
+        title: "Publish a service. Book a service.",
+        creative:
+            "Publish at least one service with your price, booking fee and availability.",
+        client: "Book at least one service with a service provider, make a booking fee payment, and pay the final balance before the service starts.",
     },
     {
-        title: "Show your work",
-        desc: "Upload portfolio posts: photos or videos of your work.",
+        title: "Show your work. Leave a review.",
+        creative: "Upload portfolio posts: photos or videos of your work.",
+        client: "Please leave a review about the service provider and the service experience you received.",
     },
 ];
 
-const BOOKING_FLOW: Step[] = [
+const CREATIVE_BOOKING_FLOW: Step[] = [
     {
         title: "Accept the request",
-        desc: "When a client books you. Accept it from the booking screen.",
+        desc: "When a client books you, accept it from the booking screen.",
     },
     {
         title: "The client payment",
-        desc: "They pay a booking fee first, then the remaining balance at any time before the service commences.",
+        desc: "The client pays a booking fee first, then the remaining balance at any time before the service commences.",
     },
     {
         title: "Start on time",
         desc: "Start Service unlocks once the client has paid in full. You can start 1 hour before your booked time.",
     },
     {
-        title: "Finish service, then upload photos",
-        desc: "Add at least one completion photo, then mark the service complete. The photos protect you if an issue comes up.",
+        title: "Finish service, then load up photos/videos of the completed service",
+        desc: "Add at least one completion photo, then mark the service complete. The photos protect you if an issue comes up later.",
     },
     {
         title: "Get paid",
-        desc: "Your money reaches your Stripe balance as the client pays. Withdraw from the Earnings screen (Instant payouts carry a small fee).",
+        desc: "Your money reaches your Stripe account balance as the client pays. Withdraw from the Earnings screen. (Instant payouts carry a small fee.)",
     },
 ];
 
-const StoreButtons = () => (
-    <Section style={card}>
-        <Text style={cardTitle}>📲 Download Wondar</Text>
-        <Text style={cardText}>
-            Install the app from the store on your phone, then follow the steps
-            below.
-        </Text>
-        {APP_STORE_URL && (
-            <Button style={btnPrimary} href={APP_STORE_URL}>
-                Download on the App Store →
+const CLIENT_BOOKING_FLOW: Step[] = [
+    {
+        title: "Find a creative",
+        desc: "Browse or search for the service you need and open the creative's profile to see their work, services and reviews.",
+    },
+    {
+        title: "Send your booking request",
+        desc: "Pick a service and your preferred date and time. You can also ask for a custom quote and share your budget.",
+    },
+    {
+        title: "Wait for the creative to accept",
+        desc: "You'll be notified as soon as they respond.",
+    },
+    {
+        title: "Pay the booking fee",
+        desc: "Once your request is accepted, pay the booking fee to secure your slot.",
+    },
+    {
+        title: "Pay the remaining balance",
+        desc: "Pay the balance at any time before the service starts. The creative can only start once you have paid in full.",
+    },
+    {
+        title: "Enjoy the service, then leave a review",
+        desc: "Tell us about the service provider and the experience you received. It helps the whole community.",
+    },
+];
+
+const StoreButtons = () => {
+    // Read at render time so a newly set env var is picked up without a code change
+    const APP_STORE_URL = process.env.APP_STORE_URL;
+    return (
+        <Section style={card}>
+            <Text style={cardTitle}>📲 Download Wondar</Text>
+            <Text style={cardText}>
+                Install the app from the store on your phone, then follow the
+                steps below.
+            </Text>
+            {APP_STORE_URL && (
+                <Button style={btnPrimary} href={APP_STORE_URL}>
+                    Download on the App Store →
+                </Button>
+            )}
+            <Button style={btnSecondary} href={PLAY_STORE_URL}>
+                Get it on Google Play →
             </Button>
-        )}
-        <Button style={btnSecondary} href={PLAY_STORE_URL}>
-            Get it on Google Play →
-        </Button>
-    </Section>
-);
+        </Section>
+    );
+};
 
 const NumberedSteps = ({ steps }: { steps: Step[] }) => (
     <Section style={{ margin: "4px 0 20px" }}>
@@ -87,7 +127,17 @@ const NumberedSteps = ({ steps }: { steps: Step[] }) => (
                 <Text style={stepTitle}>
                     <span style={stepNum}>0{i + 1}</span> {s.title}
                 </Text>
-                <Text style={stepDesc}>{s.desc}</Text>
+                {s.desc && <Text style={stepDesc}>{s.desc}</Text>}
+                {s.creative && (
+                    <Text style={stepDesc}>
+                        <span style={audience}>CREATIVES:</span> {s.creative}
+                    </Text>
+                )}
+                {s.client && (
+                    <Text style={stepDesc}>
+                        <span style={audience}>CLIENTS:</span> {s.client}
+                    </Text>
+                )}
             </Section>
         ))}
     </Section>
@@ -101,7 +151,7 @@ export const BigTenGuideEmail = ({ firstName }: BigTenGuideEmailProps) => (
             <Text style={heroLabel}>Wondar · Big Ten</Text>
             <Heading style={heroTitle}>Your starter guide</Heading>
             <Text style={heroSub}>
-                Everything you need to do, and its order is as follows:{" "}
+                Everything you need to do, and the order to do it in:
             </Text>
         </Section>
 
@@ -114,18 +164,23 @@ export const BigTenGuideEmail = ({ firstName }: BigTenGuideEmailProps) => (
         <StoreButtons />
 
         <Heading as="h2" style={sectionTitle}>
-            Set up your creative account
+            Let&apos;s get started
         </Heading>
         <NumberedSteps steps={SETUP_STEPS} />
 
         <Heading as="h2" style={sectionTitle}>
-            How a booking works
+            How a booking works for Creatives
         </Heading>
-        <NumberedSteps steps={BOOKING_FLOW} />
+        <NumberedSteps steps={CREATIVE_BOOKING_FLOW} />
+
+        <Heading as="h2" style={sectionTitle}>
+            How making a booking works for Clients
+        </Heading>
+        <NumberedSteps steps={CLIENT_BOOKING_FLOW} />
         <Text style={note}>
-            If anything goes wrong, either side can open a dispute and the
-            Wondar team reviews report, and all evidence submitted, then decides
-            the outcome.
+            If anything goes wrong with a service, either side can open a
+            dispute. The Wondar team reviews the report and all evidence
+            submitted, then decides the outcome.
         </Text>
 
         <Section style={attachCard}>
@@ -137,21 +192,27 @@ export const BigTenGuideEmail = ({ firstName }: BigTenGuideEmailProps) => (
         </Section>
 
         <Heading as="h2" style={sectionTitle}>
-            Found a bug? Tell us in the app
+            Found a bug or an issue? Tell us in the app
         </Heading>
         <Text style={paragraph}>
-            Go to Settings → Report a Bug and add a screenshot if you can. It
-            reaches us instantly with your device details attached.
+            Go to Settings → Report a Bug and add a screenshot of the issue if
+            you can. Your report reaches us instantly.
         </Text>
 
         <Text style={paragraph}>
-            You&apos;ll also get a short daily check-in. A minute of your time
-            helps us a lot.
+            You&apos;ll also get a short daily check-in notification. Take a
+            minute to check in with us, it helps us a lot.
         </Text>
 
         <Hr style={divider} />
         <Text style={paragraph}>
-            Thank you for helping us, as we aim to build this properly.
+            Now get ready to: Create, Connect, and Build a Community where you
+            are found as a Creative, and also find the services you seek as a
+            Client.
+        </Text>
+        <Text style={paragraph}>
+            Thank you for working with us, as we aim to build this amazing
+            platform and community.
         </Text>
         <Text style={signature}>— The Wondar Team</Text>
     </EmailLayout>
@@ -273,6 +334,12 @@ const attachText = {
     fontSize: "13px",
     lineHeight: "20px",
     margin: "0",
+};
+const audience = {
+    color: "#2D5A3D",
+    fontSize: "11px",
+    fontWeight: "700",
+    letterSpacing: "1px",
 };
 const divider = { borderColor: "#e5e7eb", margin: "24px 0" };
 const signature = {
