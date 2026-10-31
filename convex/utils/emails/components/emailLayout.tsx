@@ -10,6 +10,8 @@ import {
     Text,
     Hr,
     Font,
+    Row,
+    Column,
 } from "@react-email/components";
 import * as React from "react";
 
@@ -18,8 +20,68 @@ interface EmailLayoutProps {
     children: React.ReactNode;
 }
 
-const LOGO_URL = process.env.LOGO_URL || "https://wondarapp.com/logo.png";
+const LOGO_URL =
+    process.env.LOGO_URL || "https://wondarapp.com/images/logo-wide.png";
 const WEBSITE_URL = "https://wondarapp.com";
+const PLAY_STORE_URL =
+    "https://play.google.com/store/apps/details?id=com.wondarapp.wondarnew";
+
+interface StoreBadgeProps {
+    href: string;
+    imageUrl?: string; // real badge artwork, falls back to a styled button
+    alt: string;
+    small: string;
+    big: string;
+}
+
+// Inboxes block SVG and strip most styling, so the default badge is a plain
+// styled link. Set APP_STORE_BADGE_URL / PLAY_STORE_BADGE_URL to a hosted PNG
+// to use the official artwork instead.
+const StoreBadge = ({ href, imageUrl, alt, small, big }: StoreBadgeProps) => (
+    <Link href={href} style={badgeLink}>
+        {imageUrl ? (
+            <Img src={imageUrl} alt={alt} height="40" style={badgeImage} />
+        ) : (
+            <span style={badgeButton}>
+                <span style={badgeSmall}>{small}</span>
+                <span style={badgeBig}>{big}</span>
+            </span>
+        )}
+    </Link>
+);
+
+const StoreBadges = () => {
+    // Read at render time so the link follows the deployment's environment
+    const appStoreUrl = process.env.APP_STORE_URL;
+
+    return (
+        <Section style={badges}>
+            <Text style={badgesLabel}>Get the Wondar app</Text>
+            <Row style={badgesRow}>
+                {appStoreUrl && (
+                    <Column style={badgeCell}>
+                        <StoreBadge
+                            href={appStoreUrl}
+                            imageUrl={process.env.APP_STORE_BADGE_URL}
+                            alt="Download on the App Store"
+                            small="Download on the"
+                            big="App Store"
+                        />
+                    </Column>
+                )}
+                <Column style={badgeCell}>
+                    <StoreBadge
+                        href={PLAY_STORE_URL}
+                        imageUrl={process.env.PLAY_STORE_BADGE_URL}
+                        alt="Get it on Google Play"
+                        small="GET IT ON"
+                        big="Google Play"
+                    />
+                </Column>
+            </Row>
+        </Section>
+    );
+};
 
 export const EmailLayout = ({ preview, children }: EmailLayoutProps) => {
     return (
@@ -43,8 +105,8 @@ export const EmailLayout = ({ preview, children }: EmailLayoutProps) => {
                     <Section style={header}>
                         <Img
                             src={LOGO_URL}
-                            width="140"
-                            height="40"
+                            width="160"
+                            height="31"
                             alt="Wondar"
                             style={logo}
                         />
@@ -56,6 +118,7 @@ export const EmailLayout = ({ preview, children }: EmailLayoutProps) => {
                     {/* Footer */}
                     <Hr style={hr} />
                     <Section style={footer}>
+                        <StoreBadges />
                         <Text style={footerText}>
                             © {new Date().getFullYear()} Wondar. All rights
                             reserved.
@@ -122,6 +185,53 @@ const hr = {
 const footer = {
     padding: "24px 40px",
     backgroundColor: "#f8fdf8",
+};
+
+const badges = {
+    margin: "0 0 20px",
+    textAlign: "center" as const,
+};
+
+const badgesLabel = {
+    color: "#6b7280",
+    fontSize: "12px",
+    lineHeight: "16px",
+    textAlign: "center" as const,
+    margin: "0 0 10px",
+};
+
+const badgesRow = { width: "auto", margin: "0 auto" };
+
+const badgeCell = { padding: "0 6px" };
+
+const badgeLink = { textDecoration: "none" };
+
+const badgeImage = { display: "block", height: "40px", width: "auto" };
+
+const badgeButton = {
+    display: "inline-block",
+    backgroundColor: "#000000",
+    border: "1px solid #a6a6a6",
+    borderRadius: "8px",
+    padding: "6px 16px",
+    textAlign: "left" as const,
+    minWidth: "104px",
+};
+
+const badgeSmall = {
+    display: "block",
+    color: "#ffffff",
+    fontSize: "9px",
+    lineHeight: "11px",
+    letterSpacing: "0.3px",
+};
+
+const badgeBig = {
+    display: "block",
+    color: "#ffffff",
+    fontSize: "17px",
+    fontWeight: "600" as const,
+    lineHeight: "21px",
 };
 
 const footerText = {
