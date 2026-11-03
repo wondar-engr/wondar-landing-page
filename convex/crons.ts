@@ -40,4 +40,11 @@ crons.cron(
     internal.crons.bookingReminders.sendClientReminders,
 );
 
+// Catches payouts whose webhook never arrived (stuck PENDING / IN_TRANSIT)
+crons.cron(
+    "reconcile-open-payouts",
+    "0 */6 * * *",
+    internal.stripe.payoutReconcile.reconcileOpenPayouts,
+);
+
 export default crons;

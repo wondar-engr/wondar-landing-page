@@ -10,6 +10,7 @@ import {
     handlePayoutPaid,
     handlePayoutFailed,
     handlePayoutCanceled,
+    handlePayoutUpdated,
     handleTransferCreated,
     handleTransferReversed,
     handlePayoutCreatedEvent,
@@ -20,6 +21,7 @@ import {
     handlePersonUpdated,
 } from "./handlers/accountHandlers";
 import { internal } from "@convex/_generated/api";
+import { MAX_WEBHOOK_ATTEMPTS } from "./webhookEvents";
 
 interface WebhookResult {
     success: boolean;
@@ -107,6 +109,27 @@ export async function handleWebhookEvent(
     event: Stripe.Event,
 ): Promise<WebhookResult> {
     console.log(`[Stripe Webhook] Processing event: ${event.type}`);
+
+    // Stripe re-delivers events, so claim this one before doing any work
+    const claim = await ctx.runMutation(internal.stripe.webhookEvents.claim, {
+        eventId: event.id,
+        type: event.type,
+    });
+
+    if (claim.action === "skip") {
+        console.log(`[Stripe Webhook] Already handled: ${event.id}`);
+        return { success: true, statusCode: 200 };
+    }
+
+    if (claim.action === "busy") {
+        // Another delivery of this event is still running. A non-2xx makes
+        // Stripe retry later, by which time the first one has finished.
+        return {
+            success: false,
+            error: "Event is already being processed",
+            statusCode: 409,
+        };
+    }
 
     // ── Telegram on every webhook — brief, always-on visibility ──
     await ctx.scheduler.runAfter(
@@ -233,6 +256,14 @@ export async function handleWebhookEvent(
                 );
                 break;
 
+            case "payout.updated":
+                await handlePayoutUpdated(
+                    ctx,
+                    event.data.object as Stripe.Payout,
+                    event.account,
+                );
+                break;
+
             case "payout.canceled":
                 await handlePayoutCanceled(
                     ctx,
@@ -269,28 +300,46 @@ export async function handleWebhookEvent(
                 );
         }
 
+        await ctx.runMutation(internal.stripe.webhookEvents.markProcessed, {
+            eventId: event.id,
+        });
         return { success: true, statusCode: 200 };
     } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
         console.error(`[Stripe Webhook] Error handling ${event.type}:`, error);
-        // Return 200 to prevent Stripe from retrying
 
-        // Telegram on error too
+        await ctx.runMutation(internal.stripe.webhookEvents.markFailed, {
+            eventId: event.id,
+            error: message,
+        });
+
+        // Give up after a few attempts: Stripe disables endpoints that keep
+        // returning errors, and the event stays in stripeWebhookEvents
+        const gaveUp = claim.attempts >= MAX_WEBHOOK_ATTEMPTS;
+
         await ctx.scheduler.runAfter(
             0,
             internal.lib.appActions.notifications.sendTelegramNotification,
             {
                 text: [
-                    `🚨 Stripe Webhook ERROR`,
+                    gaveUp
+                        ? `🛑 Stripe Webhook GAVE UP`
+                        : `🚨 Stripe Webhook ERROR`,
                     `Event: ${event.type}`,
-                    `Error: ${error instanceof Error ? error.message : String(error)}`,
+                    `ID: ${event.id}`,
+                    `Attempt: ${claim.attempts}/${MAX_WEBHOOK_ATTEMPTS}`,
+                    `Error: ${message}`,
+                    gaveUp
+                        ? `No more retries. Check stripeWebhookEvents.`
+                        : `Stripe will retry.`,
                 ].join("\n"),
             },
         );
-        // We log the error and can investigate later
+
         return {
             success: false,
-            error: error instanceof Error ? error.message : String(error),
-            statusCode: 200,
+            error: message,
+            statusCode: gaveUp ? 200 : 500,
         };
     }
 }

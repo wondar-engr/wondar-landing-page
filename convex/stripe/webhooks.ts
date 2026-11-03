@@ -581,6 +581,8 @@ export const handlePayoutCreated = internalMutation({
         currency: v.string(),
         arrivalDate: v.number(),
         status: v.string(),
+        method: v.optional(v.string()), // Stripe: "standard" | "instant"
+        automatic: v.optional(v.boolean()), // true when Stripe's schedule made it
     },
     handler: async (ctx, args) => {
         // Check if we already have this payout
@@ -636,22 +638,149 @@ export const handlePayoutCreated = internalMutation({
             currency: args.currency.toUpperCase(),
             status,
             arrivalDate: args.arrivalDate,
-            type: "MANUAL",
+            // The app can win the race against this webhook, so read the real
+            // method instead of assuming MANUAL
+            type: args.method === "instant" ? "INSTANT" : "MANUAL",
             updatedAt: Date.now(),
         });
 
-        await ctx.scheduler.runAfter(
-            0,
-            internal.lib.appActions.notifications.sendTelegramNotification,
-            {
-                text: `💰 Automatic payout created\nCreative: ${stripeAccount.userId}\nPayout ID: ${args.stripePayoutId}\nAmount: $${args.amount / 100}`,
-                category: "PAYMENTS",
-            },
-        );
+        // All withdrawals are meant to be started from the app, so a payout
+        // made by Stripe's own schedule needs a human to look at it
+        if (args.automatic) {
+            await ctx.scheduler.runAfter(
+                0,
+                internal.lib.appActions.notifications.sendTelegramNotification,
+                {
+                    text: `⚠️ UNEXPECTED AUTOMATIC PAYOUT\nCreative: ${stripeAccount.userId}\nPayout ID: ${args.stripePayoutId}\nAmount: $${args.amount / 100}\nAutomatic payouts should be off for creatives.`,
+                    category: "PAYMENTS",
+                },
+            );
+        }
 
         console.log(
             `[Webhook] Created payout record: ${args.stripePayoutId} - $${args.amount / 100}`,
         );
+    },
+});
+
+type PayoutStatus = "PENDING" | "IN_TRANSIT" | "PAID" | "FAILED" | "CANCELED";
+
+const PAYOUT_STATUS_MAP: Record<string, PayoutStatus> = {
+    pending: "PENDING",
+    in_transit: "IN_TRANSIT",
+    paid: "PAID",
+    failed: "FAILED",
+    canceled: "CANCELED",
+};
+
+const PAYOUT_STATUS_RANK: Record<PayoutStatus, number> = {
+    PENDING: 0,
+    IN_TRANSIT: 1,
+    PAID: 2,
+    FAILED: 2,
+    CANCELED: 2,
+};
+
+/**
+ * Bring our payout record in line with what Stripe says. Used by
+ * payout.updated, as a fallback when a payout event arrives for a record we
+ * never saved, and by the scheduled reconcile.
+ *
+ * Events can arrive out of order, so a status only moves forward. A payout
+ * that was marked paid can still fail later (the bank returns it), so FAILED
+ * is always allowed.
+ */
+export const syncPayout = internalMutation({
+    args: {
+        stripePayoutId: v.string(),
+        stripeAccountId: v.string(),
+        amount: v.number(),
+        currency: v.string(),
+        arrivalDate: v.number(),
+        status: v.string(),
+        method: v.optional(v.string()),
+        failureCode: v.optional(v.union(v.string(), v.null())),
+        failureMessage: v.optional(v.union(v.string(), v.null())),
+    },
+    handler: async (ctx, args) => {
+        const status = PAYOUT_STATUS_MAP[args.status];
+        if (!status) {
+            console.log(
+                `[Webhook] Unknown payout status "${args.status}" for ${args.stripePayoutId}`,
+            );
+            return { changed: false };
+        }
+
+        const now = Date.now();
+        const existing = await ctx.db
+            .query("payouts")
+            .withIndex("by_stripePayoutId", q =>
+                q.eq("stripePayoutId", args.stripePayoutId),
+            )
+            .unique();
+
+        if (!existing) {
+            const stripeAccount = await ctx.db
+                .query("stripeAccounts")
+                .withIndex("by_stripeAccountId", q =>
+                    q.eq("stripeAccountId", args.stripeAccountId),
+                )
+                .unique();
+
+            if (!stripeAccount) {
+                console.log(
+                    `[Webhook] Stripe account not found for payout: ${args.stripeAccountId}`,
+                );
+                return { changed: false };
+            }
+
+            await ctx.db.insert("payouts", {
+                creativeId: stripeAccount.userId,
+                stripeAccountId: args.stripeAccountId,
+                stripePayoutId: args.stripePayoutId,
+                amount: args.amount,
+                currency: args.currency.toUpperCase(),
+                status,
+                arrivalDate: args.arrivalDate,
+                type: args.method === "instant" ? "INSTANT" : "MANUAL",
+                ...(status === "PAID" ? { paidAt: now } : {}),
+                failureCode: args.failureCode ?? undefined,
+                failureMessage: args.failureMessage ?? undefined,
+                updatedAt: now,
+            });
+            return { changed: true };
+        }
+
+        const moves =
+            status === "FAILED"
+                ? existing.status !== "FAILED"
+                : PAYOUT_STATUS_RANK[status] >
+                  PAYOUT_STATUS_RANK[existing.status];
+
+        if (!moves) {
+            // Same or older status: only keep the arrival date current
+            if (existing.arrivalDate !== args.arrivalDate) {
+                await ctx.db.patch(existing._id, {
+                    arrivalDate: args.arrivalDate,
+                    updatedAt: now,
+                });
+            }
+            return { changed: false };
+        }
+
+        await ctx.db.patch(existing._id, {
+            status,
+            arrivalDate: args.arrivalDate,
+            ...(status === "PAID" && !existing.paidAt ? { paidAt: now } : {}),
+            ...(status === "FAILED"
+                ? {
+                      failureCode: args.failureCode ?? undefined,
+                      failureMessage: args.failureMessage ?? undefined,
+                  }
+                : {}),
+            updatedAt: now,
+        });
+        return { changed: true };
     },
 });
 

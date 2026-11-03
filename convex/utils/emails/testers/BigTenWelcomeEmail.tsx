@@ -11,7 +11,7 @@ interface BigTenWelcomeEmailProps {
 const EXPECTATIONS = [
     {
         title: "Set up a live and active profile.",
-        desc: "Your profile should include at least one published service.",
+        desc: "Your profile should include at least one published service. For the pilot, that service should be priced at exactly $5.00.",
     },
     {
         title: "Connect your account with Stripe",
@@ -93,6 +93,14 @@ export const BigTenWelcomeEmail = ({
             we&apos;d love for you to:
         </Text>
         <ExpectationList />
+
+        <Section style={tipCard}>
+            <Text style={tipText}>
+                <strong>Jumping into the app before your guide arrives?</strong>{" "}
+                Publish your first service at exactly $5.00, not your regular
+                price. Your starter guide has the full details.
+            </Text>
+        </Section>
 
         <Heading as="h2" style={sectionTitle}>
             Two features worth trying
@@ -185,6 +193,19 @@ const expectDesc = {
     color: "#4b5563",
     fontSize: "13px",
     lineHeight: "20px",
+    margin: "0",
+};
+const tipCard = {
+    backgroundColor: "#f4fbd0",
+    borderLeft: "4px solid #E4F97C",
+    borderRadius: "10px",
+    padding: "12px 16px",
+    margin: "0 0 24px",
+};
+const tipText = {
+    color: "#1A2E1A",
+    fontSize: "14px",
+    lineHeight: "22px",
     margin: "0",
 };
 const nextCard = {

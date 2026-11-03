@@ -131,6 +131,8 @@ import type * as stripe_handlers_payoutHandlers from "../stripe/handlers/payoutH
 import type * as stripe_handlers_transferHandlers from "../stripe/handlers/transferHandlers.js";
 import type * as stripe_index from "../stripe/index.js";
 import type * as stripe_ledger from "../stripe/ledger.js";
+import type * as stripe_payoutReconcile from "../stripe/payoutReconcile.js";
+import type * as stripe_webhookEvents from "../stripe/webhookEvents.js";
 import type * as stripe_webhookHandler from "../stripe/webhookHandler.js";
 import type * as stripe_webhooks from "../stripe/webhooks.js";
 import type * as tests_notifications from "../tests/notifications.js";
@@ -301,6 +303,8 @@ declare const fullApi: ApiFromModules<{
   "stripe/handlers/transferHandlers": typeof stripe_handlers_transferHandlers;
   "stripe/index": typeof stripe_index;
   "stripe/ledger": typeof stripe_ledger;
+  "stripe/payoutReconcile": typeof stripe_payoutReconcile;
+  "stripe/webhookEvents": typeof stripe_webhookEvents;
   "stripe/webhookHandler": typeof stripe_webhookHandler;
   "stripe/webhooks": typeof stripe_webhooks;
   "tests/notifications": typeof tests_notifications;

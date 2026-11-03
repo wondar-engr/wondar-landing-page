@@ -23,7 +23,49 @@ export async function handlePayoutCreatedEvent(
         currency: payout.currency,
         arrivalDate: payout.arrival_date,
         status: payout.status,
+        method: payout.method,
+        automatic: payout.automatic,
     });
+}
+
+/**
+ * Make sure we have a record for this payout, at the status Stripe reports.
+ * Payout events can arrive for payouts the app never saved (or before it
+ * saved them), and the specific handlers below only update existing records.
+ */
+async function syncPayoutRecord(
+    ctx: ActionCtx,
+    payout: Stripe.Payout,
+    stripeAccountId: string | undefined,
+) {
+    if (!stripeAccountId) return { changed: false };
+
+    return await ctx.runMutation(internal.stripe.webhooks.syncPayout, {
+        stripePayoutId: payout.id,
+        stripeAccountId,
+        amount: payout.amount,
+        currency: payout.currency,
+        arrivalDate: payout.arrival_date,
+        status: payout.status,
+        method: payout.method,
+        failureCode: payout.failure_code,
+        failureMessage: payout.failure_message,
+    });
+}
+
+export async function handlePayoutUpdated(
+    ctx: ActionCtx,
+    payout: Stripe.Payout,
+    stripeAccountId: string | undefined,
+) {
+    console.log(`[Stripe] Payout updated: ${payout.id} (${payout.status})`);
+
+    const { changed } = await syncPayoutRecord(ctx, payout, stripeAccountId);
+
+    // A payout that settles or comes back changes the available balance
+    if (changed && stripeAccountId && payout.status !== "in_transit") {
+        await syncAccountBalance(ctx, stripeAccountId);
+    }
 }
 
 export async function handlePayoutPaid(
@@ -32,6 +74,8 @@ export async function handlePayoutPaid(
     stripeAccountId: string | undefined,
 ) {
     console.log(`[Stripe] Payout paid: ${payout.id}`);
+
+    await syncPayoutRecord(ctx, payout, stripeAccountId);
 
     await ctx.runMutation(internal.stripe.webhooks.handlePayoutPaid, {
         stripePayoutId: payout.id,
@@ -51,6 +95,8 @@ export async function handlePayoutFailed(
     stripeAccountId: string | undefined, // ← add
 ) {
     console.log(`[Stripe] Payout failed: ${payout.id}`);
+
+    await syncPayoutRecord(ctx, payout, stripeAccountId);
 
     await ctx.runMutation(internal.stripe.webhooks.handlePayoutFailed, {
         stripePayoutId: payout.id,
@@ -84,7 +130,6 @@ export async function handlePayoutCanceled(
 export async function handleTransferCreated(
     ctx: ActionCtx,
     transfer: Stripe.Transfer,
-    stripeAccountId: string | undefined,
 ) {
     console.log(`[Stripe] Transfer created: ${transfer.id}`);
 

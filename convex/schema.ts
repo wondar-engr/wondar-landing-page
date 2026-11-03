@@ -664,6 +664,25 @@ const schema = defineSchema({
         .index("by_stripePayoutId", ["stripePayoutId"])
         .index("by_status", ["status"]),
 
+    // Every Stripe webhook event we have received, so retries and duplicate
+    // deliveries are processed once and failures stay visible
+    stripeWebhookEvents: defineTable({
+        eventId: v.string(), // evt_...
+        type: v.string(),
+        status: v.union(
+            v.literal("processing"),
+            v.literal("processed"),
+            v.literal("failed"),
+        ),
+        attempts: v.number(),
+        receivedAt: v.number(),
+        startedAt: v.number(),
+        processedAt: v.optional(v.number()),
+        lastError: v.optional(v.string()),
+    })
+        .index("by_eventId", ["eventId"])
+        .index("by_status", ["status"]),
+
     // ==========================================
     // REFUNDS
     // ==========================================

@@ -38,7 +38,7 @@ const SETUP_STEPS: Step[] = [
     {
         title: "Publish a service. Book a service.",
         creative:
-            "Publish at least one service with your price, booking fee and availability.",
+            "Publish at least one service with your price, booking fee and availability. For the pilot, this is your $5.00 service (see the box above).",
         client: "Book at least one service with a service provider, make a booking fee payment, and pay the final balance before the service starts.",
     },
     {
@@ -120,6 +120,50 @@ const StoreButtons = () => {
     );
 };
 
+const PILOT_STEPS = [
+    "Create a service you can realistically offer for $5.",
+    "Make sure the title and description clearly explain what the buyer receives.",
+    "Set the service price to exactly $5.00.",
+    "Publish your service once all the information is complete.",
+    "Confirm that your published service is visible in the marketplace.",
+];
+
+const PilotServiceCard = () => (
+    <Section style={pilotCard}>
+        <Text style={pilotLabel}>Creatives · Required</Text>
+        <Heading as="h2" style={pilotTitle}>
+            Publish your $5.00 pilot service
+        </Heading>
+        <Text style={pilotText}>
+            As part of the Wondar Big Ten pilot, we are asking every
+            participating creative to create and publish at least one service
+            priced at exactly $5.00, using the service creation already in the
+            app.
+        </Text>
+        {PILOT_STEPS.map(step => (
+            <Text key={step} style={pilotItem}>
+                <span style={pilotCheck}>✓</span> {step}
+            </Text>
+        ))}
+        <Section style={pilotImportant}>
+            <Text style={pilotImportantText}>
+                <strong>Important:</strong> This is a pilot testing exercise.
+                The $5 service helps us validate the platform&apos;s
+                functionality and user experience. Please do not create a
+                regular-priced service for this particular test.
+            </Text>
+        </Section>
+        <Text style={pilotText}>
+            If you run into any issues, document the problem and report it in
+            the app under Settings → Report a Bug, with screenshots when
+            possible.
+        </Text>
+        <Text style={{ ...pilotText, margin: "0" }}>
+            Thank you for helping us test and improve Wondar before launch!
+        </Text>
+    </Section>
+);
+
 const NumberedSteps = ({ steps }: { steps: Step[] }) => (
     <Section style={{ margin: "4px 0 20px" }}>
         {steps.map((s, i) => (
@@ -162,6 +206,8 @@ export const BigTenGuideEmail = ({ firstName }: BigTenGuideEmailProps) => (
         </Text>
 
         <StoreButtons />
+
+        <PilotServiceCard />
 
         <Heading as="h2" style={sectionTitle}>
             Let&apos;s get started
@@ -331,6 +377,52 @@ const attachTitle = {
 };
 const attachText = {
     color: "#78350f",
+    fontSize: "13px",
+    lineHeight: "20px",
+    margin: "0",
+};
+const pilotCard = {
+    backgroundColor: "#2D5A3D",
+    borderRadius: "16px",
+    padding: "24px 26px",
+    margin: "24px 0",
+};
+const pilotLabel = {
+    color: "#a7f3d0",
+    fontSize: "11px",
+    fontWeight: "700",
+    letterSpacing: "2px",
+    textTransform: "uppercase" as const,
+    margin: "0 0 8px",
+};
+const pilotTitle = {
+    color: "#E4F97C",
+    fontSize: "24px",
+    fontWeight: "700",
+    lineHeight: "30px",
+    margin: "0 0 12px",
+};
+const pilotText = {
+    color: "#d1fae5",
+    fontSize: "14px",
+    lineHeight: "22px",
+    margin: "0 0 14px",
+};
+const pilotItem = {
+    color: "#ffffff",
+    fontSize: "14px",
+    lineHeight: "21px",
+    margin: "0 0 8px",
+};
+const pilotCheck = { color: "#E4F97C", fontWeight: "700" };
+const pilotImportant = {
+    backgroundColor: "#E4F97C",
+    borderRadius: "10px",
+    padding: "12px 16px",
+    margin: "14px 0",
+};
+const pilotImportantText = {
+    color: "#1A2E1A",
     fontSize: "13px",
     lineHeight: "20px",
     margin: "0",
