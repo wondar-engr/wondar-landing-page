@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 import { query } from "@convex/_generated/server";
 import { requireAdminProfile } from "@convex/utils/helpers/auth";
+import { getAuthUserProfile } from "@convex/utils/helpers/auth";
+import { isAdminRole } from "@convex/utils/access";
 
 const typeValidator = v.union(v.literal("BUG"), v.literal("FEATURE"));
 const roleValidator = v.union(v.literal("CLIENT"), v.literal("CREATIVE"));
@@ -18,7 +20,7 @@ export const list = query({
         role: v.optional(roleValidator),
     },
     handler: async (ctx, { type, status, role }) => {
-        await requireAdminProfile(ctx);
+        const admin = await requireAdminProfile(ctx);
 
         // Use an index for one filter, apply the rest in memory
         const base = status
@@ -33,11 +35,49 @@ export const list = query({
 
         const reports = await base.order("desc").collect();
 
-        return reports.filter(
+        const filtered = reports.filter(
             r =>
                 (!status || r.status === status) &&
                 (!type || r.type === type) &&
                 (!role || r.userRole === role),
+        );
+
+        const bigTenEmails = new Set(
+            (await ctx.db.query("bigTenTesters").collect()).map(t => t.email),
+        );
+
+        // Comment count, and whether this admin has anything new to read:
+        // never opened it, or someone else commented after they last did
+        return await Promise.all(
+            filtered.map(async report => {
+                const comments = await ctx.db
+                    .query("feedbackComments")
+                    .withIndex("by_reportId", q => q.eq("reportId", report._id))
+                    .collect();
+                const read = await ctx.db
+                    .query("feedbackReads")
+                    .withIndex("by_profile_report", q =>
+                        q.eq("profileId", admin._id).eq("reportId", report._id),
+                    )
+                    .unique();
+
+                const unread =
+                    !read ||
+                    comments.some(
+                        c =>
+                            c.authorId !== admin._id &&
+                            c._creationTime > read.lastReadAt,
+                    );
+
+                return {
+                    ...report,
+                    commentCount: comments.length,
+                    unread,
+                    isBigTen: bigTenEmails.has(
+                        report.email.trim().toLowerCase(),
+                    ),
+                };
+            }),
         );
     },
 });
@@ -55,11 +95,75 @@ export const getById = query({
             ? await ctx.db.get(report.resolvedBy)
             : null;
 
+        const owner = report.ownerId ? await ctx.db.get(report.ownerId) : null;
+
         return {
             ...report,
+            ownerName: owner
+                ? `${owner.firstName ?? ""} ${owner.lastName ?? ""}`.trim() ||
+                  owner.email
+                : undefined,
             resolvedByName: resolver
                 ? `${resolver.firstName ?? ""} ${resolver.lastName ?? ""}`.trim()
                 : undefined,
         };
+    },
+});
+
+export const listComments = query({
+    args: { reportId: v.id("feedbackReports") },
+    handler: async (ctx, { reportId }) => {
+        const admin = await requireAdminProfile(ctx);
+
+        const comments = await ctx.db
+            .query("feedbackComments")
+            .withIndex("by_reportId", q => q.eq("reportId", reportId))
+            .order("asc")
+            .collect();
+
+        // Admins are few, so look each author up once
+        const authors = new Map<string, string>();
+        for (const authorId of new Set(comments.map(c => c.authorId))) {
+            const author = await ctx.db.get(authorId);
+            authors.set(
+                authorId,
+                author
+                    ? `${author.firstName ?? ""} ${author.lastName ?? ""}`.trim() ||
+                          author.email
+                    : "Former admin",
+            );
+        }
+
+        return comments.map(c => ({
+            _id: c._id,
+            _creationTime: c._creationTime,
+            body: c.body,
+            authorName: authors.get(c.authorId) ?? "Former admin",
+            isMine: c.authorId === admin._id,
+        }));
+    },
+});
+
+// Powers the sidebar badge: comments from other admins this admin hasn't
+// seen. Opening a report clears its comments. Quiet for anyone not signed in
+// as an admin, so the sidebar can ask without error handling.
+export const unreadCommentCount = query({
+    args: {},
+    handler: async ctx => {
+        const admin = await getAuthUserProfile(ctx);
+        if (!admin || !isAdminRole(admin.role)) return 0;
+
+        const reads = await ctx.db
+            .query("feedbackReads")
+            .filter(q => q.eq(q.field("profileId"), admin._id))
+            .collect();
+        const lastRead = new Map(reads.map(r => [r.reportId, r.lastReadAt]));
+
+        const comments = await ctx.db.query("feedbackComments").collect();
+        return comments.filter(
+            c =>
+                c.authorId !== admin._id &&
+                c._creationTime > (lastRead.get(c.reportId) ?? 0),
+        ).length;
     },
 });

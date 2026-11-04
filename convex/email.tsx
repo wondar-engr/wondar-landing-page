@@ -15,6 +15,7 @@ import TesterRejectionEmail from "./utils/emails/testers/TesterRejectionEmail";
 import { DeletionRequestEmail } from "./utils/emails/deletion/DeletionRequestEmail";
 import BigTenGuideEmail from "./utils/emails/testers/BigTenGuideEmail";
 import BigTenWelcomeEmail from "./utils/emails/testers/BigTenWelcomeEmail";
+import BigTenMessageEmail from "./utils/emails/testers/BigTenMessageEmail";
 
 const PDF_URL = process.env.BETA_TEST_GUIDE_PDF_URL;
 const BIG_TEN_GUIDE_URL = process.env.BIG_TEN_GUIDE_PDF_URL ?? PDF_URL;
@@ -262,6 +263,32 @@ export const sendBigTenGuide = internalAction({
                     path: BIG_TEN_GUIDE_URL,
                 },
             ],
+        });
+    },
+});
+
+// A free-form note to one Big Ten tester (typed in the admin, or the daily
+// check-in reminder), inside the standard email layout
+export const sendBigTenMessage = internalAction({
+    args: {
+        email: v.string(),
+        firstName: v.optional(v.string()),
+        subject: v.string(),
+        body: v.string(),
+    },
+    handler: async (ctx, args) => {
+        await resend.sendEmail(ctx, {
+            from: FROM,
+            replyTo: BIG_TEN_REPLY_TO,
+            to: args.email,
+            subject: args.subject,
+            html: await render(
+                React.createElement(BigTenMessageEmail, {
+                    firstName: args.firstName,
+                    subject: args.subject,
+                    body: args.body,
+                }),
+            ),
         });
     },
 });

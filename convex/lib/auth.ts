@@ -3,6 +3,7 @@ import { action, mutation, query } from "../_generated/server";
 import { CustomError } from "../utils/errorUtils";
 import { getAuthUserId } from "../auth";
 import { api } from "../_generated/api";
+import { isAdminRole } from "../utils/access";
 
 /**
  * Send phone verification code
@@ -138,7 +139,7 @@ export const checkSigninUserExists = mutation({
                 );
             }
 
-            if (profile.role !== "ADMIN") {
+            if (!isAdminRole(profile.role)) {
                 throw new CustomError(
                     "Account does not exist. Please check credentials.",
                 );

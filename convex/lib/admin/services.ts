@@ -1,6 +1,10 @@
 import { v } from "convex/values";
 import { mutation, query } from "../../_generated/server";
-import { getAuthUserId } from "../../auth";
+import { hasAccess } from "../../utils/access";
+import {
+    getAuthUserProfile,
+    requireAccessProfile,
+} from "../../utils/helpers/auth";
 import { CustomError } from "../../utils/errorUtils";
 
 export const addServiceCategory = mutation({
@@ -10,10 +14,7 @@ export const addServiceCategory = mutation({
     },
     handler: async (ctx, { name, image }) => {
         try {
-            const userId = await getAuthUserId(ctx);
-            if (!userId) {
-                throw new CustomError("Unauthorized");
-            }
+            await requireAccessProfile(ctx, "serviceCategories");
 
             const existingCategory = await ctx.db
                 .query("serviceCategories")
@@ -67,10 +68,7 @@ export const updateServiceCategory = mutation({
     },
     handler: async (ctx, { id, name, image, status, rank }) => {
         try {
-            const userId = await getAuthUserId(ctx);
-            if (!userId) {
-                throw new CustomError("Unauthorized");
-            }
+            await requireAccessProfile(ctx, "serviceCategories");
 
             const existing = await ctx.db.get(id);
             if (!existing) {
@@ -129,10 +127,7 @@ export const disableServiceCategory = mutation({
     },
     handler: async (ctx, { id }) => {
         try {
-            const userId = await getAuthUserId(ctx);
-            if (!userId) {
-                throw new CustomError("Unauthorized");
-            }
+            await requireAccessProfile(ctx, "serviceCategories");
 
             const existing = await ctx.db.get(id);
             if (!existing) {
@@ -167,10 +162,7 @@ export const swapCategoryRanks = mutation({
     },
     handler: async (ctx, { categoryId, targetCategoryId }) => {
         try {
-            const userId = await getAuthUserId(ctx);
-            if (!userId) {
-                throw new CustomError("Unauthorized");
-            }
+            await requireAccessProfile(ctx, "serviceCategories");
 
             const category = await ctx.db.get(categoryId);
             const targetCategory = await ctx.db.get(targetCategoryId);
@@ -207,8 +199,10 @@ export const getServiceCategories = query({
         includeDisabled: v.optional(v.boolean()),
     },
     handler: async (ctx, { includeDisabled }) => {
-        const userId = await getAuthUserId(ctx);
-        if (!userId) return null;
+        const profile = await getAuthUserProfile(ctx);
+        if (!profile || !hasAccess(profile.role, "serviceCategories")) {
+            return null;
+        }
 
         let categories = await ctx.db.query("serviceCategories").collect();
 

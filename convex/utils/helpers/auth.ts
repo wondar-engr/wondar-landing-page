@@ -1,5 +1,6 @@
 import { QueryCtx, MutationCtx } from "../../_generated/server";
 import { authComponent } from "../../auth";
+import { AccessArea, hasAccess, isAdminRole } from "../access";
 
 export async function getAuthUserId(
     ctx: QueryCtx | MutationCtx,
@@ -38,7 +39,18 @@ export async function requireAuthUserProfile(ctx: QueryCtx | MutationCtx) {
 
 export async function requireAdminProfile(ctx: QueryCtx | MutationCtx) {
     const profile = await requireAuthUserProfile(ctx);
-    if (profile.role !== "ADMIN")
+    if (!isAdminRole(profile.role))
         throw new Error("Unauthorized. Admin access required.");
+    return profile;
+}
+
+// For pages limited by the access map in utils/access.ts
+export async function requireAccessProfile(
+    ctx: QueryCtx | MutationCtx,
+    area: AccessArea,
+) {
+    const profile = await requireAuthUserProfile(ctx);
+    if (!hasAccess(profile.role, area))
+        throw new Error("Unauthorized. You do not have access to this area.");
     return profile;
 }

@@ -9,6 +9,9 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as bigTen_config from "../bigTen/config.js";
+import type * as bigTen_reminders from "../bigTen/reminders.js";
+import type * as bigTen_roster from "../bigTen/roster.js";
 import type * as crons from "../crons.js";
 import type * as crons_bookingContext from "../crons/bookingContext.js";
 import type * as crons_bookingFns from "../crons/bookingFns.js";
@@ -18,6 +21,8 @@ import type * as crons_quoteFns from "../crons/quoteFns.js";
 import type * as data_categoryTree from "../data/categoryTree.js";
 import type * as email from "../email.js";
 import type * as http from "../http.js";
+import type * as lib_admin_bigTen_mutations from "../lib/admin/bigTen/mutations.js";
+import type * as lib_admin_bigTen_queries from "../lib/admin/bigTen/queries.js";
 import type * as lib_admin_bookings_mutations from "../lib/admin/bookings/mutations.js";
 import type * as lib_admin_bookings_queries from "../lib/admin/bookings/queries.js";
 import type * as lib_admin_dashboard from "../lib/admin/dashboard.js";
@@ -31,8 +36,6 @@ import type * as lib_admin_services_mutations from "../lib/admin/services/mutati
 import type * as lib_admin_services_queries from "../lib/admin/services/queries.js";
 import type * as lib_admin_stripe_actions from "../lib/admin/stripe/actions.js";
 import type * as lib_admin_systemConfig from "../lib/admin/systemConfig.js";
-import type * as lib_admin_testers_mutations from "../lib/admin/testers/mutations.js";
-import type * as lib_admin_testers_queries from "../lib/admin/testers/queries.js";
 import type * as lib_admin_user_creatives from "../lib/admin/user/creatives.js";
 import type * as lib_admin_user_queries from "../lib/admin/user/queries.js";
 import type * as lib_admin_users from "../lib/admin/users.js";
@@ -123,6 +126,7 @@ import type * as r2 from "../r2.js";
 import type * as scripts_backfillOfflineSettlement from "../scripts/backfillOfflineSettlement.js";
 import type * as scripts_bigTen from "../scripts/bigTen.js";
 import type * as scripts_platformLedger from "../scripts/platformLedger.js";
+import type * as scripts_roles from "../scripts/roles.js";
 import type * as seed_systemConfig from "../seed/systemConfig.js";
 import type * as stripe_handlers_accountHandlers from "../stripe/handlers/accountHandlers.js";
 import type * as stripe_handlers_index from "../stripe/handlers/index.js";
@@ -139,6 +143,7 @@ import type * as tests_notifications from "../tests/notifications.js";
 import type * as tests_public from "../tests/public.js";
 import type * as twilio from "../twilio.js";
 import type * as unions from "../unions.js";
+import type * as utils_access from "../utils/access.js";
 import type * as utils_emails_clientOnboardingEmail from "../utils/emails/clientOnboardingEmail.js";
 import type * as utils_emails_components_BaseEmail from "../utils/emails/components/BaseEmail.js";
 import type * as utils_emails_components_emailLayout from "../utils/emails/components/emailLayout.js";
@@ -149,6 +154,7 @@ import type * as utils_emails_magicLink from "../utils/emails/magicLink.js";
 import type * as utils_emails_resetPassword from "../utils/emails/resetPassword.js";
 import type * as utils_emails_sendEmail from "../utils/emails/sendEmail.js";
 import type * as utils_emails_testers_BigTenGuideEmail from "../utils/emails/testers/BigTenGuideEmail.js";
+import type * as utils_emails_testers_BigTenMessageEmail from "../utils/emails/testers/BigTenMessageEmail.js";
 import type * as utils_emails_testers_BigTenWelcomeEmail from "../utils/emails/testers/BigTenWelcomeEmail.js";
 import type * as utils_emails_testers_TesterConfirmationEmail from "../utils/emails/testers/TesterConfirmationEmail.js";
 import type * as utils_emails_testers_TesterRejectionEmail from "../utils/emails/testers/TesterRejectionEmail.js";
@@ -181,6 +187,9 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  "bigTen/config": typeof bigTen_config;
+  "bigTen/reminders": typeof bigTen_reminders;
+  "bigTen/roster": typeof bigTen_roster;
   crons: typeof crons;
   "crons/bookingContext": typeof crons_bookingContext;
   "crons/bookingFns": typeof crons_bookingFns;
@@ -190,6 +199,8 @@ declare const fullApi: ApiFromModules<{
   "data/categoryTree": typeof data_categoryTree;
   email: typeof email;
   http: typeof http;
+  "lib/admin/bigTen/mutations": typeof lib_admin_bigTen_mutations;
+  "lib/admin/bigTen/queries": typeof lib_admin_bigTen_queries;
   "lib/admin/bookings/mutations": typeof lib_admin_bookings_mutations;
   "lib/admin/bookings/queries": typeof lib_admin_bookings_queries;
   "lib/admin/dashboard": typeof lib_admin_dashboard;
@@ -203,8 +214,6 @@ declare const fullApi: ApiFromModules<{
   "lib/admin/services/queries": typeof lib_admin_services_queries;
   "lib/admin/stripe/actions": typeof lib_admin_stripe_actions;
   "lib/admin/systemConfig": typeof lib_admin_systemConfig;
-  "lib/admin/testers/mutations": typeof lib_admin_testers_mutations;
-  "lib/admin/testers/queries": typeof lib_admin_testers_queries;
   "lib/admin/user/creatives": typeof lib_admin_user_creatives;
   "lib/admin/user/queries": typeof lib_admin_user_queries;
   "lib/admin/users": typeof lib_admin_users;
@@ -295,6 +304,7 @@ declare const fullApi: ApiFromModules<{
   "scripts/backfillOfflineSettlement": typeof scripts_backfillOfflineSettlement;
   "scripts/bigTen": typeof scripts_bigTen;
   "scripts/platformLedger": typeof scripts_platformLedger;
+  "scripts/roles": typeof scripts_roles;
   "seed/systemConfig": typeof seed_systemConfig;
   "stripe/handlers/accountHandlers": typeof stripe_handlers_accountHandlers;
   "stripe/handlers/index": typeof stripe_handlers_index;
@@ -311,6 +321,7 @@ declare const fullApi: ApiFromModules<{
   "tests/public": typeof tests_public;
   twilio: typeof twilio;
   unions: typeof unions;
+  "utils/access": typeof utils_access;
   "utils/emails/clientOnboardingEmail": typeof utils_emails_clientOnboardingEmail;
   "utils/emails/components/BaseEmail": typeof utils_emails_components_BaseEmail;
   "utils/emails/components/emailLayout": typeof utils_emails_components_emailLayout;
@@ -321,6 +332,7 @@ declare const fullApi: ApiFromModules<{
   "utils/emails/resetPassword": typeof utils_emails_resetPassword;
   "utils/emails/sendEmail": typeof utils_emails_sendEmail;
   "utils/emails/testers/BigTenGuideEmail": typeof utils_emails_testers_BigTenGuideEmail;
+  "utils/emails/testers/BigTenMessageEmail": typeof utils_emails_testers_BigTenMessageEmail;
   "utils/emails/testers/BigTenWelcomeEmail": typeof utils_emails_testers_BigTenWelcomeEmail;
   "utils/emails/testers/TesterConfirmationEmail": typeof utils_emails_testers_TesterConfirmationEmail;
   "utils/emails/testers/TesterRejectionEmail": typeof utils_emails_testers_TesterRejectionEmail;

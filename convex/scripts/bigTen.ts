@@ -1,6 +1,9 @@
 import { internalMutation } from "../_generated/server";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
+import { MutationCtx } from "../_generated/server";
+import { BIG_TEN_ROSTER, RosterEntry } from "../bigTen/roster";
+import { EMAIL_GAP_MS } from "../bigTen/config";
 
 const args = { email: v.string(), firstName: v.optional(v.string()) };
 
@@ -31,75 +34,17 @@ export const sendTestGuide = internalMutation({
 // Leave dryRun out (or true) to only preview who would receive it.
 // To send to a few people, pass their emails: { "only": ["a@x.com"], "dryRun": false }
 
-type Tester = { email: string; firstName: string; note: string };
-
-const BIG_TEN_TESTERS: Tester[] = [
-    {
-        email: "soulfullyplantd@gmail.com",
-        firstName: "Lamisha",
-        note: "influencer/culinary",
-    },
-    {
-        email: "Ciaraward22@gmail.com",
-        firstName: "Ciara",
-        note: "influencer/podcast host",
-    },
-    {
-        email: "wlaquinn@yahoo.com",
-        firstName: "Laquinn",
-        note: "barber/influencer/rapper",
-    },
-    {
-        email: "dylanthagoat100@gmail.com",
-        firstName: "Dylan",
-        note: "influencer/pod host",
-    },
-    {
-        email: "chidiebere19800@gmail.com",
-        firstName: "Chidi",
-        note: "influencer/podcast host",
-    },
-    {
-        email: "Mariej_eustache@yahoo.com",
-        firstName: "Josee",
-        note: "actress/model/podcast host/influencer",
-    },
-    {
-        email: "Tieharri@yahoo.com",
-        firstName: "Tierra",
-        note: "app user/author/client",
-    },
-    {
-        email: "deshyaeasley123@gmail.com",
-        firstName: "Deshya",
-        note: "hair dresser",
-    },
-    {
-        email: "ayannawardlow@gmail.com",
-        firstName: "Yanni",
-        note: "model/influencer/actress",
-    },
-    {
-        email: "aniyah87915@gmail.com",
-        firstName: "Aniyah",
-        note: "illustrator",
-    },
-    {
-        email: "saltdesignandetc@gmail.com",
-        firstName: "Stephanie",
-        note: "custom apparel and wood worker",
-    },
-];
+const BIG_TEN_TESTERS = BIG_TEN_ROSTER;
 
 // Resend allows about 2 requests a second, so each email goes out 1.5s after the last
-const SEND_GAP_MS = 1500;
+const SEND_GAP_MS = EMAIL_GAP_MS;
 
 const bulkArgs = {
     dryRun: v.optional(v.boolean()), // defaults to true
     only: v.optional(v.array(v.string())), // limit to these emails
 };
 
-function pickRecipients(only: string[] | undefined): Tester[] {
+function pickRecipients(only: string[] | undefined): RosterEntry[] {
     if (!only) return BIG_TEN_TESTERS;
 
     const wanted = new Set(only.map(e => e.trim().toLowerCase()));
@@ -113,6 +58,19 @@ function pickRecipients(only: string[] | undefined): Tester[] {
         throw new Error(`Not in the Big Ten list: ${unknown.join(", ")}`);
     }
     return found;
+}
+
+// Records the send on the tester's row in the admin, when they're on it
+async function stampSent(
+    ctx: MutationCtx,
+    email: string,
+    field: "welcomeSentAt" | "guideSentAt",
+) {
+    const tester = await ctx.db
+        .query("bigTenTesters")
+        .withIndex("by_email", q => q.eq("email", email.trim().toLowerCase()))
+        .unique();
+    if (tester) await ctx.db.patch(tester._id, { [field]: Date.now() });
 }
 
 export const sendAllWelcome = internalMutation({
@@ -130,6 +88,7 @@ export const sendAllWelcome = internalMutation({
                         firstName: t.firstName,
                     },
                 );
+                await stampSent(ctx, t.email, "welcomeSentAt");
             }
         }
 
@@ -169,6 +128,7 @@ export const sendAllGuide = internalMutation({
                         firstName: t.firstName,
                     },
                 );
+                await stampSent(ctx, t.email, "guideSentAt");
             }
         }
 
@@ -178,5 +138,44 @@ export const sendAllGuide = internalMutation({
             count: recipients.length,
             recipients: recipients.map(t => `${t.firstName} <${t.email}>`),
         };
+    },
+});
+
+// Adds the Big Ten list to the admin's Big Ten page. Safe to run again:
+// existing testers are left alone and only missing ones are added.
+//   seedRoster {}
+export const seedRoster = internalMutation({
+    args: {},
+    handler: async ctx => {
+        const added: string[] = [];
+
+        for (const entry of BIG_TEN_ROSTER) {
+            const email = entry.email.trim().toLowerCase();
+            const existing = await ctx.db
+                .query("bigTenTesters")
+                .withIndex("by_email", q => q.eq("email", email))
+                .unique();
+            if (existing) continue;
+
+            await ctx.db.insert("bigTenTesters", {
+                email,
+                firstName: entry.firstName,
+                role: entry.role,
+                note: entry.note,
+                confirmed: false,
+                readyToTest: false,
+                results: {
+                    registration: "PENDING",
+                    access: "PENDING",
+                    core: "PENDING",
+                    navigation: "PENDING",
+                },
+                remindersMuted: false,
+                updatedAt: Date.now(),
+            });
+            added.push(entry.firstName);
+        }
+
+        return { added, total: BIG_TEN_ROSTER.length };
     },
 });

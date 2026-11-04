@@ -1,5 +1,6 @@
 import { internalQuery } from "@convex/_generated/server";
 import { requireAuthUserId } from "@convex/utils/helpers/auth";
+import { isAdminRole } from "@convex/utils/access";
 
 export const getAdminProfile = internalQuery(async ctx => {
     const userId = await requireAuthUserId(ctx);
@@ -9,7 +10,7 @@ export const getAdminProfile = internalQuery(async ctx => {
         .withIndex("by_userId", q => q.eq("userId", userId))
         .first();
 
-    if (!adminProfile || adminProfile.role !== "ADMIN") {
+    if (!adminProfile || !isAdminRole(adminProfile.role)) {
         return null;
     }
 

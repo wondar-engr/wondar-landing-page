@@ -1,6 +1,7 @@
 import { mutation, query } from "../../_generated/server";
 import { SystemConfigCategoryUnion } from "../../unions";
 import { v } from "convex/values";
+import { requireAccessProfile } from "../../utils/helpers/auth";
 
 /**
  * Get a single config value by key
@@ -61,7 +62,7 @@ export const getConfigsByCategory = query({
 export const getAllConfigs = query({
     args: {},
     handler: async ctx => {
-        // TODO: Add admin check
+        await requireAccessProfile(ctx, "settings");
         const configs = await ctx.db.query("systemConfig").collect();
         return configs;
     },
@@ -76,10 +77,7 @@ export const updateConfig = mutation({
         value: v.any(),
     },
     handler: async (ctx, args) => {
-        // TODO: Add admin check
-        // const userId = await getAuthUserId(ctx);
-        // const isAdmin = await checkIsAdmin(ctx, userId);
-        // if (!isAdmin) throw new Error("Unauthorized");
+        await requireAccessProfile(ctx, "settings");
 
         const config = await ctx.db
             .query("systemConfig")
@@ -97,7 +95,7 @@ export const updateConfig = mutation({
         await ctx.db.patch(config._id, {
             value: args.value,
             updatedAt: Date.now(),
-            // updatedBy: userId,
+            // updatedBy: the admin who made the change,
         });
 
         return { success: true };
@@ -117,7 +115,7 @@ export const updateConfigs = mutation({
         ),
     },
     handler: async (ctx, args) => {
-        // TODO: Add admin check
+        await requireAccessProfile(ctx, "settings");
 
         const results = [];
 

@@ -47,4 +47,17 @@ crons.cron(
     internal.stripe.payoutReconcile.reconcileOpenPayouts,
 );
 
+// Big Ten daily check-in. Fires at both UTC hours that can be 6 PM US Central
+// (daylight and standard time); the function only acts at the right one.
+crons.cron(
+    "big-ten-daily-reminder-cdt",
+    "0 23 * * *",
+    internal.bigTen.reminders.sendDailyReminders,
+);
+crons.cron(
+    "big-ten-daily-reminder-cst",
+    "0 0 * * *",
+    internal.bigTen.reminders.sendDailyReminders,
+);
+
 export default crons;

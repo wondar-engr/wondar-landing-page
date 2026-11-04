@@ -5,7 +5,11 @@ export const UserTypeUnion = v.union(
     v.literal("CREATIVE"),
 );
 
-export const UserRoleUnion = v.union(v.literal("ADMIN"), v.literal("USER"));
+export const UserRoleUnion = v.union(
+    v.literal("SUPER_ADMIN"),
+    v.literal("ADMIN"),
+    v.literal("USER"),
+);
 
 export const AccountStatusUnion = v.union(
     v.literal("ACTIVE"),

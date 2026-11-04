@@ -32,27 +32,113 @@ export const updateStatus = mutation({
     },
 });
 
-export const setNotionUrl = mutation({
+const MAX_COMMENT_LENGTH = 2000;
+
+export const addComment = mutation({
+    args: {
+        reportId: v.id("feedbackReports"),
+        body: v.string(),
+    },
+    handler: async (ctx, { reportId, body }) => {
+        const admin = await requireAdminProfile(ctx);
+
+        const report = await ctx.db.get(reportId);
+        if (!report) throwAppError("Report not found.");
+
+        const trimmed = body.trim();
+        if (!trimmed) throwAppError("Write a comment first.");
+        if (trimmed.length > MAX_COMMENT_LENGTH) {
+            throwAppError(
+                `Comments can be up to ${MAX_COMMENT_LENGTH} characters.`,
+            );
+        }
+
+        const id = await ctx.db.insert("feedbackComments", {
+            reportId,
+            authorId: admin._id,
+            body: trimmed,
+        });
+
+        return { success: true, id };
+    },
+});
+
+export const deleteComment = mutation({
+    args: { id: v.id("feedbackComments") },
+    handler: async (ctx, { id }) => {
+        const admin = await requireAdminProfile(ctx);
+
+        const comment = await ctx.db.get(id);
+        if (!comment) throwAppError("Comment not found.");
+
+        // Admins can only remove their own comments
+        if (comment.authorId !== admin._id) {
+            throwAppError("You can only delete your own comments.");
+        }
+
+        await ctx.db.delete(id);
+        return { success: true };
+    },
+});
+
+export const markRead = mutation({
+    args: { reportId: v.id("feedbackReports") },
+    handler: async (ctx, { reportId }) => {
+        const admin = await requireAdminProfile(ctx);
+
+        const existing = await ctx.db
+            .query("feedbackReads")
+            .withIndex("by_profile_report", q =>
+                q.eq("profileId", admin._id).eq("reportId", reportId),
+            )
+            .unique();
+
+        const now = Date.now();
+        if (existing) {
+            await ctx.db.patch(existing._id, { lastReadAt: now });
+        } else {
+            await ctx.db.insert("feedbackReads", {
+                reportId,
+                profileId: admin._id,
+                lastReadAt: now,
+            });
+        }
+
+        return { success: true };
+    },
+});
+
+export const updateTriage = mutation({
     args: {
         id: v.id("feedbackReports"),
-        notionUrl: v.string(),
+        severity: v.optional(
+            v.union(
+                v.literal("LOW"),
+                v.literal("MEDIUM"),
+                v.literal("HIGH"),
+                v.literal("CRITICAL"),
+                v.null(),
+            ),
+        ),
+        ownerId: v.optional(v.union(v.id("profiles"), v.null())),
+        retestResult: v.optional(
+            v.union(v.literal("PASS"), v.literal("FAIL"), v.null()),
+        ),
     },
-    handler: async (ctx, { id, notionUrl }) => {
+    handler: async (ctx, { id, severity, ownerId, retestResult }) => {
         await requireAdminProfile(ctx);
 
         const report = await ctx.db.get(id);
         if (!report) throwAppError("Report not found.");
 
-        const trimmed = notionUrl.trim();
-        if (trimmed && !/^https?:\/\//i.test(trimmed)) {
-            throwAppError("Enter a valid link starting with http(s)://");
-        }
+        // null clears a field, undefined leaves it alone
+        const patch: Record<string, unknown> = { updatedAt: Date.now() };
+        if (severity !== undefined) patch.severity = severity ?? undefined;
+        if (ownerId !== undefined) patch.ownerId = ownerId ?? undefined;
+        if (retestResult !== undefined)
+            patch.retestResult = retestResult ?? undefined;
 
-        await ctx.db.patch(id, {
-            notionUrl: trimmed || undefined,
-            updatedAt: Date.now(),
-        });
-
+        await ctx.db.patch(id, patch);
         return { success: true };
     },
 });

@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "../../_generated/server";
 import { getAuthUserId } from "../../auth";
 import { CustomError } from "../../utils/errorUtils";
+import { requireAccessProfile } from "../../utils/helpers/auth";
 
 export const getUsers = query({
     args: {
@@ -211,18 +212,25 @@ export const updateUserStatus = mutation({
 export const updateUserRole = mutation({
     args: {
         id: v.id("profiles"),
-        role: v.union(v.literal("ADMIN"), v.literal("USER")),
+        role: v.union(
+            v.literal("SUPER_ADMIN"),
+            v.literal("ADMIN"),
+            v.literal("USER"),
+        ),
     },
     handler: async (ctx, { id, role }) => {
         try {
-            const adminId = await getAuthUserId(ctx);
-            if (!adminId) {
-                throw new CustomError("Unauthorized");
-            }
+            // Only super admins decide who can do what
+            const actor = await requireAccessProfile(ctx, "roles");
 
             const profile = await ctx.db.get(id);
             if (!profile) {
                 throw new CustomError("User not found");
+            }
+
+            // Stops the last super admin from locking everyone out
+            if (profile._id === actor._id) {
+                throw new CustomError("You cannot change your own role.");
             }
 
             await ctx.db.patch(id, {

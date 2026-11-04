@@ -41,6 +41,12 @@ import {
     QuoteAwaitingRoleUnion,
 } from "./unions";
 
+const BigTenResultUnion = v.union(
+    v.literal("PENDING"),
+    v.literal("PASS"),
+    v.literal("FAIL"),
+);
+
 const schema = defineSchema({
     profiles: defineTable({
         userId: v.string(), // BetterAuth ID (Primary Key)
@@ -930,14 +936,83 @@ const schema = defineSchema({
             v.literal("resolved"),
             v.literal("closed"),
         ),
-        notionUrl: v.optional(v.string()),
+        notionUrl: v.optional(v.string()), // legacy: Notion links are no longer used
         updatedAt: v.optional(v.number()),
         resolvedBy: v.optional(v.id("profiles")),
         resolvedAt: v.optional(v.number()),
+        // Triage, set by admins
+        severity: v.optional(
+            v.union(
+                v.literal("LOW"),
+                v.literal("MEDIUM"),
+                v.literal("HIGH"),
+                v.literal("CRITICAL"),
+            ),
+        ),
+        ownerId: v.optional(v.id("profiles")),
+        retestResult: v.optional(v.union(v.literal("PASS"), v.literal("FAIL"))),
     })
         .index("by_userId", ["userId"])
         .index("by_type", ["type"])
         .index("by_status", ["status"]),
+    // Admin discussion thread under each bug report / feature request
+    feedbackComments: defineTable({
+        reportId: v.id("feedbackReports"),
+        authorId: v.id("profiles"), // the admin who wrote it
+        body: v.string(),
+    }).index("by_reportId", ["reportId"]),
+    // Wondar Big Ten pilot: one row per selected tester
+    bigTenTesters: defineTable({
+        email: v.string(), // lowercase; testers sign up with this address
+        firstName: v.string(),
+        lastName: v.optional(v.string()),
+        role: v.union(v.literal("CLIENT"), v.literal("CREATIVE")),
+        note: v.optional(v.string()),
+
+        // Set by hand
+        confirmed: v.boolean(),
+        readyToTest: v.boolean(),
+        ownerId: v.optional(v.id("profiles")), // admin following up with them
+
+        // Stamped when the emails go out
+        welcomeSentAt: v.optional(v.number()),
+        guideSentAt: v.optional(v.number()),
+
+        // Workflow results
+        results: v.object({
+            registration: BigTenResultUnion,
+            access: BigTenResultUnion,
+            core: BigTenResultUnion,
+            navigation: BigTenResultUnion,
+        }),
+        resultNotes: v.optional(v.string()),
+        testedAt: v.optional(v.number()),
+
+        // Daily check-in reminder
+        remindersMuted: v.boolean(),
+        lastReminderAt: v.optional(v.number()),
+        updatedAt: v.number(),
+    }).index("by_email", ["email"]),
+    // Everything sent to a Big Ten tester from the dashboard or the daily cron
+    bigTenMessages: defineTable({
+        testerId: v.id("bigTenTesters"),
+        kind: v.union(
+            v.literal("MANUAL"),
+            v.literal("DAILY_REMINDER"),
+            v.literal("WELCOME"),
+            v.literal("GUIDE"),
+        ),
+        channel: v.union(v.literal("EMAIL"), v.literal("PUSH")),
+        subject: v.string(),
+        body: v.string(),
+        sentBy: v.optional(v.id("profiles")), // empty for automatic sends
+    }).index("by_testerId", ["testerId"]),
+    // When each admin last opened a report, so the list can flag unread ones
+    feedbackReads: defineTable({
+        reportId: v.id("feedbackReports"),
+        profileId: v.id("profiles"),
+        lastReadAt: v.number(),
+    }).index("by_profile_report", ["profileId", "reportId"]),
     quotes: defineTable({
         clientId: v.string(),
         creativeId: v.string(),

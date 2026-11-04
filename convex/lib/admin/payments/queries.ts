@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { query } from "@convex/_generated/server";
 import { TransactionStatusUnion, PayoutStatusUnion } from "@convex/unions";
-import { requireAdminProfile } from "@convex/utils/helpers/auth";
+import { requireAccessProfile } from "@convex/utils/helpers/auth";
 
 export const getAllTransactions = query({
     args: {
@@ -10,7 +10,7 @@ export const getAllTransactions = query({
         limit: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
-        await requireAdminProfile(ctx);
+        await requireAccessProfile(ctx, "payments");
 
         const limit = args.limit ?? 50;
         let transactions;
@@ -50,7 +50,7 @@ export const getAllTransactions = query({
 export const getTransactionById = query({
     args: { transactionId: v.id("transactions") },
     handler: async (ctx, args) => {
-        await requireAdminProfile(ctx);
+        await requireAccessProfile(ctx, "payments");
 
         const transaction = await ctx.db.get(args.transactionId);
         if (!transaction) return null;
@@ -98,7 +98,7 @@ export const getAllPayouts = query({
         limit: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
-        await requireAdminProfile(ctx);
+        await requireAccessProfile(ctx, "payments");
 
         const limit = args.limit ?? 50;
         let payouts;
@@ -135,7 +135,7 @@ export const getAllPayouts = query({
 export const getPaymentStats = query({
     args: {},
     handler: async ctx => {
-        await requireAdminProfile(ctx);
+        await requireAccessProfile(ctx, "payments");
 
         const [transactions, payouts, refunds] = await Promise.all([
             ctx.db.query("transactions").collect(),
