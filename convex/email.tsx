@@ -16,7 +16,7 @@ import { DeletionRequestEmail } from "./utils/emails/deletion/DeletionRequestEma
 import BigTenGuideEmail from "./utils/emails/testers/BigTenGuideEmail";
 import BigTenWelcomeEmail from "./utils/emails/testers/BigTenWelcomeEmail";
 import { redirectEmailPayload, withDevRedirect } from "./utils/devMode";
-import ReportReceivedEmail from "./utils/emails/testers/ReportReceivedEmail";
+import ContactReceivedEmail from "./utils/emails/ContactReceivedEmail";
 import BigTenMessageEmail from "./utils/emails/testers/BigTenMessageEmail";
 
 const PDF_URL = process.env.BETA_TEST_GUIDE_PDF_URL;
@@ -302,12 +302,10 @@ export const sendBigTenMessage = internalAction({
 });
 
 // Confirmation to someone who used the website contact form
-export const sendReportReceived = internalAction({
+export const sendContactReceived = internalAction({
     args: {
         email: v.string(),
         name: v.optional(v.string()),
-        title: v.string(),
-        isIdea: v.boolean(),
     },
     handler: async (ctx, args) => {
         await resend.sendEmail(ctx, {
@@ -316,10 +314,8 @@ export const sendReportReceived = internalAction({
             to: args.email,
             subject: "We got your message — Wondar",
             html: await render(
-                React.createElement(ReportReceivedEmail, {
+                React.createElement(ContactReceivedEmail, {
                     name: args.name,
-                    title: args.title,
-                    isIdea: args.isIdea,
                 }),
             ),
         });

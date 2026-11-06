@@ -1021,6 +1021,24 @@ const schema = defineSchema({
         profileId: v.id("profiles"),
         lastReadAt: v.number(),
     }).index("by_profile_report", ["profileId", "reportId"]),
+    // Messages from the website contact form. Separate from feedback reports;
+    // an admin can move one into Feedback if it turns out to be a bug or idea.
+    contactMessages: defineTable({
+        name: v.string(),
+        email: v.string(),
+        topic: v.string(), // General, Support, Partnership, Press, Other
+        message: v.string(),
+        status: v.union(
+            v.literal("NEW"),
+            v.literal("HANDLED"),
+            v.literal("ARCHIVED"),
+        ),
+        handledBy: v.optional(v.id("profiles")),
+        handledAt: v.optional(v.number()),
+        feedbackReportId: v.optional(v.id("feedbackReports")), // if moved
+    })
+        .index("by_status", ["status"])
+        .index("by_email", ["email"]),
     quotes: defineTable({
         clientId: v.string(),
         creativeId: v.string(),

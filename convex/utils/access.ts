@@ -17,6 +17,7 @@ export const ACCESS = {
     bookings: ADMINS,
     feedback: ADMINS,
     bigTen: ADMINS,
+    messages: ADMINS,
 
     // Money, platform configuration and role management
     payments: SUPER_ONLY,
@@ -56,6 +57,7 @@ const ROUTE_AREAS: [string, AccessArea][] = [
     ["/dashboard/bookings", "bookings"],
     ["/dashboard/feedback", "feedback"],
     ["/dashboard/big-ten", "bigTen"],
+    ["/dashboard/messages", "messages"],
 ];
 
 export function areaForPath(pathname: string): AccessArea {
