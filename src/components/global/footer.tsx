@@ -84,6 +84,12 @@ export function Footer() {
                     </p>
                     <div className="flex items-center gap-6">
                         <Link
+                            href="/contact"
+                            className="hover:text-white transition-colors"
+                        >
+                            Contact
+                        </Link>
+                        <Link
                             href="/privacy"
                             className="hover:text-white transition-colors"
                         >
