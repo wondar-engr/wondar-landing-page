@@ -37,3 +37,31 @@ export const getUploadUrl = action({
         return url;
     },
 });
+
+// Image upload for the website contact form, where nobody is signed in.
+// Fixed folder, images only, random file name.
+const REPORT_IMAGE_TYPES: Record<string, string> = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/webp": "webp",
+};
+
+export const getReportImageUploadUrl = action({
+    args: { contentType: v.string() },
+    handler: async (_ctx, { contentType }) => {
+        const ext = REPORT_IMAGE_TYPES[contentType];
+        if (!ext) throw new Error("Only PNG, JPG or WebP images are allowed.");
+
+        const key = `feedback-web/${Date.now()}_${Math.random().toString(36).slice(2, 10)}.${ext}`;
+        const command = new PutObjectCommand({
+            Bucket: "wondar-bucket",
+            Key: key,
+            ContentType: contentType,
+        });
+        const uploadUrl = await getSignedUrl(getR2Client(), command, {
+            expiresIn: 60,
+        });
+
+        return { uploadUrl, key };
+    },
+});

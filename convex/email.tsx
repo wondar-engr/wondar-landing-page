@@ -15,6 +15,8 @@ import TesterRejectionEmail from "./utils/emails/testers/TesterRejectionEmail";
 import { DeletionRequestEmail } from "./utils/emails/deletion/DeletionRequestEmail";
 import BigTenGuideEmail from "./utils/emails/testers/BigTenGuideEmail";
 import BigTenWelcomeEmail from "./utils/emails/testers/BigTenWelcomeEmail";
+import { redirectEmailPayload, withDevRedirect } from "./utils/devMode";
+import ReportReceivedEmail from "./utils/emails/testers/ReportReceivedEmail";
 import BigTenMessageEmail from "./utils/emails/testers/BigTenMessageEmail";
 
 const PDF_URL = process.env.BETA_TEST_GUIDE_PDF_URL;
@@ -32,10 +34,12 @@ if (!apiKey) {
     throw new Error("RESEND_API_KEY is not set in environment variables");
 }
 
-export const resend = new Resend(components.resend, {
-    testMode: false,
-    apiKey,
-});
+export const resend = withDevRedirect(
+    new Resend(components.resend, {
+        testMode: false,
+        apiKey,
+    }),
+);
 
 async function send(
     ctx: Parameters<typeof resend.sendEmail>[0],
@@ -173,18 +177,20 @@ export const sendTesterWelcome = internalAction({
             }),
         );
 
-        await resend.emails.send({
-            from: FROM,
-            to: args.email,
-            subject: "You're in! Here's how to get started on Wondar 🎉",
-            html,
-            attachments: [
-                {
-                    filename: "wondar_beta_onboarding_guide.pdf",
-                    path: PDF_URL,
-                },
-            ],
-        });
+        await resend.emails.send(
+            redirectEmailPayload({
+                from: FROM,
+                to: args.email,
+                subject: "You're in! Here's how to get started on Wondar 🎉",
+                html,
+                attachments: [
+                    {
+                        filename: "wondar_beta_onboarding_guide.pdf",
+                        path: PDF_URL,
+                    },
+                ],
+            }),
+        );
     },
 });
 
@@ -251,19 +257,21 @@ export const sendBigTenGuide = internalAction({
             }),
         );
 
-        await resend.emails.send({
-            from: FROM,
-            replyTo: BIG_TEN_REPLY_TO,
-            to: args.email,
-            subject: "Your Wondar Big Ten starter guide",
-            html,
-            attachments: [
-                {
-                    filename: "wondar_big_ten_guide.pdf",
-                    path: BIG_TEN_GUIDE_URL,
-                },
-            ],
-        });
+        await resend.emails.send(
+            redirectEmailPayload({
+                from: FROM,
+                replyTo: BIG_TEN_REPLY_TO,
+                to: args.email,
+                subject: "Your Wondar Big Ten starter guide",
+                html,
+                attachments: [
+                    {
+                        filename: "wondar_big_ten_guide.pdf",
+                        path: BIG_TEN_GUIDE_URL,
+                    },
+                ],
+            }),
+        );
     },
 });
 
@@ -287,6 +295,31 @@ export const sendBigTenMessage = internalAction({
                     firstName: args.firstName,
                     subject: args.subject,
                     body: args.body,
+                }),
+            ),
+        });
+    },
+});
+
+// Confirmation to someone who used the website contact form
+export const sendReportReceived = internalAction({
+    args: {
+        email: v.string(),
+        name: v.optional(v.string()),
+        title: v.string(),
+        isIdea: v.boolean(),
+    },
+    handler: async (ctx, args) => {
+        await resend.sendEmail(ctx, {
+            from: FROM,
+            replyTo: BIG_TEN_REPLY_TO,
+            to: args.email,
+            subject: "We got your message — Wondar",
+            html: await render(
+                React.createElement(ReportReceivedEmail, {
+                    name: args.name,
+                    title: args.title,
+                    isIdea: args.isIdea,
                 }),
             ),
         });

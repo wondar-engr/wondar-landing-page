@@ -18,6 +18,7 @@ export const submitReport = mutation({
         role: v.union(v.literal("CLIENT"), v.literal("CREATIVE")),
         title: v.string(),
         message: v.string(),
+        screenshots: v.optional(v.array(v.string())),
         website: v.optional(v.string()), // hidden field; only bots fill it in
     },
     handler: async (ctx, args) => {
@@ -57,6 +58,13 @@ export const submitReport = mutation({
             };
         }
 
+        // Only images uploaded through the website form, and only a few
+        const screenshots = (args.screenshots ?? [])
+            .filter(
+                u => u.startsWith("https://") && u.includes("/feedback-web/"),
+            )
+            .slice(0, 3);
+
         // Ties the report to their account when they have one
         const profile = await ctx.db
             .query("profiles")
@@ -69,12 +77,22 @@ export const submitReport = mutation({
             type: args.type,
             title,
             description: message,
+            screenshotUrl: screenshots[0],
+            screenshots: screenshots.length ? screenshots : undefined,
             deviceInfo: "Website contact form",
             appVersion: "N/A",
             userRole: profile?.currentType ?? args.role,
             status: "open",
             source: "WEBSITE",
             reporterName: name,
+        });
+
+        // Let them know it arrived
+        await ctx.scheduler.runAfter(0, internal.email.sendReportReceived, {
+            email,
+            name,
+            title,
+            isIdea: args.type === "FEATURE",
         });
 
         await ctx.scheduler.runAfter(

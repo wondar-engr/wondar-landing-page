@@ -2,6 +2,7 @@
 
 import { v } from "convex/values";
 import { Resend } from "resend";
+import { redirectEmailPayload } from "../devMode";
 import { getEmailContent, EmailTemplate } from "./emailService";
 import { action } from "../../../convex/_generated/server";
 
@@ -37,12 +38,14 @@ export const sendEmail = action({
             const fromEmail =
                 template === "welcome" ? FROM_EMAIL_DEE : FROM_EMAIL;
 
-            const result = await resend.emails.send({
-                from: fromEmail,
-                to,
-                subject,
-                html,
-            });
+            const result = await resend.emails.send(
+                redirectEmailPayload({
+                    from: fromEmail,
+                    to,
+                    subject,
+                    html,
+                }),
+            );
 
             console.log(`✅ Email sent: ${template} to ${to}`);
             return { success: true, id: result.data?.id };

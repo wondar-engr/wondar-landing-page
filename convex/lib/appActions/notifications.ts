@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalAction } from "../../_generated/server";
+import { isDevDeployment } from "../../utils/devMode";
 import axios from "axios";
 import { internal } from "@convex/_generated/api";
 
@@ -50,7 +51,7 @@ export const sendTelegramNotification = internalAction({
             const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TG_BOT_KEY}`;
             await axios.post(`${TELEGRAM_API}/sendMessage`, {
                 chat_id: chatId,
-                text: `${args.text}\n\n🕐 ${new Date().toUTCString()}`,
+                text: `${isDevDeployment() ? "[DEV] " : ""}${args.text}\n\n🕐 ${new Date().toUTCString()}`,
             });
             return true;
         } catch (err) {

@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation } from "@convex/_generated/server";
 import { requireAdminProfile } from "@convex/utils/helpers/auth";
+import { internal } from "@convex/_generated/api";
 import { throwAppError } from "@convex/utils/helpers/error";
 
 export const updateStatus = mutation({
@@ -158,6 +159,7 @@ export const createReport = mutation({
         reporterName: v.optional(v.string()),
         screenName: v.optional(v.string()),
         channel: v.optional(v.string()), // how it reached us, e.g. WhatsApp
+        screenshots: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
         const admin = await requireAdminProfile(ctx);
@@ -200,6 +202,10 @@ export const createReport = mutation({
             title,
             description,
             screenName: args.screenName?.trim() || undefined,
+            screenshotUrl: args.screenshots?.[0],
+            screenshots: args.screenshots?.length
+                ? args.screenshots
+                : undefined,
             deviceInfo: `Added by ${adminName}${args.channel ? ` (reported via ${args.channel})` : ""}`,
             appVersion: "N/A",
             userRole: args.userRole,
@@ -216,6 +222,90 @@ export const createReport = mutation({
             lastReadAt: Date.now(),
         });
 
+        await ctx.scheduler.runAfter(
+            0,
+            internal.lib.appActions.notifications.sendTelegramNotification,
+            {
+                text: [
+                    `${args.type === "BUG" ? "🐛" : "💡"} NEW ${args.type === "BUG" ? "BUG REPORT" : "FEATURE REQUEST"} (added by ${adminName})`,
+                    ``,
+                    `👤 About:     ${reporterName ?? email}`,
+                    `📧 Email:     ${email}`,
+                    `🎭 Role:      ${args.userRole}`,
+                    ...(args.channel ? [`💬 Via:       ${args.channel}`] : []),
+                    ``,
+                    `📌 Title: ${title}`,
+                    `📝 ${description}`,
+                    ...(args.screenshots?.length
+                        ? [``, `🖼 Images: ${args.screenshots.join(" ")}`]
+                        : []),
+                ].join("\n"),
+                category: "GENERAL",
+            },
+        );
+
         return { success: true, id };
+    },
+});
+
+// Edit a report's content. Status and triage have their own controls.
+export const updateReport = mutation({
+    args: {
+        id: v.id("feedbackReports"),
+        type: v.union(v.literal("BUG"), v.literal("FEATURE")),
+        title: v.string(),
+        description: v.string(),
+        userRole: v.union(v.literal("CLIENT"), v.literal("CREATIVE")),
+        screenName: v.optional(v.string()),
+        screenshots: v.array(v.string()),
+        // Only reports an admin or the website created can change who they're about
+        reporterName: v.optional(v.string()),
+        email: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        await requireAdminProfile(ctx);
+
+        const report = await ctx.db.get(args.id);
+        if (!report) throwAppError("Report not found.");
+
+        const title = args.title.trim();
+        const description = args.description.trim();
+        if (!title) throwAppError("Add a title.");
+        if (!description) throwAppError("Describe what happened.");
+        if (title.length > MAX_TITLE)
+            throwAppError(`Titles can be up to ${MAX_TITLE} characters.`);
+        if (description.length > MAX_DESCRIPTION)
+            throwAppError(
+                `Descriptions can be up to ${MAX_DESCRIPTION} characters.`,
+            );
+
+        const patch: Record<string, unknown> = {
+            type: args.type,
+            title,
+            description,
+            userRole: args.userRole,
+            screenName: args.screenName?.trim() || undefined,
+            screenshots: args.screenshots.length ? args.screenshots : undefined,
+            screenshotUrl: args.screenshots[0],
+            updatedAt: Date.now(),
+        };
+
+        if (report.source === "ADMIN" || report.source === "WEBSITE") {
+            patch.reporterName = args.reporterName?.trim() || undefined;
+            if (args.email !== undefined) {
+                const email = args.email.trim().toLowerCase();
+                if (!/^\S+@\S+\.\S+$/.test(email))
+                    throwAppError("Enter a valid email.");
+                const profile = await ctx.db
+                    .query("profiles")
+                    .withIndex("by_email", q => q.eq("email", email))
+                    .first();
+                patch.email = email;
+                patch.userId = profile?.userId ?? `external:${email}`;
+            }
+        }
+
+        await ctx.db.patch(args.id, patch);
+        return { success: true };
     },
 });

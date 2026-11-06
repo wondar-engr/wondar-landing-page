@@ -7,6 +7,7 @@ import {
     SUMMARY_HOUR,
 } from "../utils/constants/bigTen";
 import { zonedDateAndHour } from "../utils/time";
+import { isDevDeployment } from "../utils/devMode";
 
 /**
  * End-of-day Big Ten report to Telegram: where every tester stands, plus the
@@ -24,6 +25,7 @@ export const sendDailySummary = internalMutation({
 export async function runSummary(ctx: MutationCtx, force: boolean) {
     const clock = zonedDateAndHour(REMINDER_TIME_ZONE);
     if (!force) {
+        if (isDevDeployment()) return { skipped: "dev deployment" };
         if (clock.hour !== SUMMARY_HOUR) return { skipped: "not 11 PM" };
         if (clock.date > PILOT_END_DATE) return { skipped: "pilot ended" };
     }

@@ -925,7 +925,8 @@ const schema = defineSchema({
         type: v.union(v.literal("BUG"), v.literal("FEATURE")),
         title: v.string(),
         description: v.string(),
-        screenshotUrl: v.optional(v.string()),
+        screenshotUrl: v.optional(v.string()), // first image; kept for the app
+        screenshots: v.optional(v.array(v.string())), // all images
         screenName: v.optional(v.string()),
         deviceInfo: v.string(),
         appVersion: v.string(),
