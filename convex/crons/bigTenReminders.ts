@@ -1,4 +1,3 @@
-import { v } from "convex/values";
 import { internalMutation, MutationCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { sendNotification } from "../lib/notifications";
@@ -7,8 +6,9 @@ import {
     MIN_REMINDER_GAP_MS,
     PILOT_END_DATE,
     REMINDER_HOUR,
-    reminderClock,
-} from "./config";
+    REMINDER_TIME_ZONE,
+} from "../utils/constants/bigTen";
+import { zonedDateAndHour } from "../utils/time";
 
 /**
  * Daily check-in for the Big Ten pilot, at 6 PM US Central until the pilot
@@ -17,21 +17,15 @@ import {
  *
  * The cron fires at 23:00 and 00:00 UTC; only the one that lands on 6 PM
  * Central does anything, so daylight saving needs no changes here.
- * Can also be run by hand from the dashboard: bigTen/reminders:sendDailyReminders
- * with { "force": true } to skip the time-of-day check.
+ * To send one by hand, run scripts/bigTen:sendRemindersNow.
  */
 export const sendDailyReminders = internalMutation({
     args: {},
     handler: async ctx => runReminders(ctx, false),
 });
 
-export const sendDailyRemindersNow = internalMutation({
-    args: { force: v.optional(v.boolean()) },
-    handler: async (ctx, { force }) => runReminders(ctx, force ?? false),
-});
-
-async function runReminders(ctx: MutationCtx, force: boolean) {
-    const clock = reminderClock();
+export async function runReminders(ctx: MutationCtx, force: boolean) {
+    const clock = zonedDateAndHour(REMINDER_TIME_ZONE);
 
     if (!force) {
         if (clock.hour !== REMINDER_HOUR) return { skipped: "not 6 PM" };

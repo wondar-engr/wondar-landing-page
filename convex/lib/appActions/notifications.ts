@@ -4,7 +4,12 @@ import axios from "axios";
 import { internal } from "@convex/_generated/api";
 
 export type TelegramCategory =
-    "PAYMENTS" | "WEBHOOKS" | "DISPUTES" | "ACCOUNTS" | "BOOKINGS" | "GENERAL"; // fallback — maps to existing TG_GROUP_CHAT_ID
+    | "PAYMENTS"
+    | "WEBHOOKS"
+    | "DISPUTES"
+    | "ACCOUNTS"
+    | "BOOKINGS"
+    | "GENERAL"; // fallback — maps to existing TG_GROUP_CHAT_ID
 
 const CATEGORY_CHAT_IDS: Record<TelegramCategory, string> = {
     PAYMENTS: "TG_PAYMENTS_CHAT_ID",

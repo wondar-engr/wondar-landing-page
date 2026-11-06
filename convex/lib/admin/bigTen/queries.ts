@@ -1,64 +1,8 @@
 import { v } from "convex/values";
-import { query, QueryCtx } from "@convex/_generated/server";
+import { query } from "@convex/_generated/server";
 import { Doc } from "@convex/_generated/dataModel";
 import { requireAccessProfile } from "@convex/utils/helpers/auth";
-
-const OPEN_STATUSES = ["open", "reviewed"];
-
-// The part of a tester's picture that comes from the real app, matched by the
-// email they were invited with
-async function appStatus(ctx: QueryCtx, tester: Doc<"bigTenTesters">) {
-    const profile = await ctx.db
-        .query("profiles")
-        .withIndex("by_email", q => q.eq("email", tester.email))
-        .first();
-
-    if (!profile) {
-        return {
-            profileId: null,
-            accountCreated: false,
-            lastSeen: null,
-            onboarded: false,
-            services: [] as { name: string; serviceFee: number }[],
-            reportCount: 0,
-            openReportCount: 0,
-        };
-    }
-
-    const services =
-        tester.role === "CREATIVE"
-            ? (
-                  await ctx.db
-                      .query("services")
-                      .filter(q => q.eq(q.field("userId"), profile.userId))
-                      .collect()
-              )
-                  .filter(s => s.status === "ACTIVE" && !s.deleteStatus)
-                  .map(s => ({ name: s.name, serviceFee: s.serviceFee }))
-            : [];
-
-    const reports = await ctx.db
-        .query("feedbackReports")
-        .withIndex("by_userId", q => q.eq("userId", profile.userId))
-        .collect();
-
-    const onboarded =
-        profile.onboarding.profileComplete &&
-        (tester.role === "CREATIVE"
-            ? profile.onboarding.creativeComplete
-            : profile.onboarding.clientComplete);
-
-    return {
-        profileId: profile._id,
-        accountCreated: true,
-        lastSeen: profile.lastSeen ?? null,
-        onboarded,
-        services,
-        reportCount: reports.length,
-        openReportCount: reports.filter(r => OPEN_STATUSES.includes(r.status))
-            .length,
-    };
-}
+import { loadAppStatus } from "@convex/utils/helpers/bigTen";
 
 const allPassed = (t: Doc<"bigTenTesters">) =>
     Object.values(t.results).every(r => r === "PASS");
@@ -72,7 +16,7 @@ export const list = query({
         const rows = await Promise.all(
             testers.map(async tester => ({
                 ...tester,
-                app: await appStatus(ctx, tester),
+                app: await loadAppStatus(ctx, tester),
             })),
         );
         rows.sort((a, b) => a._creationTime - b._creationTime);
@@ -102,16 +46,15 @@ export const getById = query({
         const tester = await ctx.db.get(id);
         if (!tester) return null;
 
-        const app = await appStatus(ctx, tester);
-        const profile = app.profileId ? await ctx.db.get(app.profileId) : null;
+        const app = await loadAppStatus(ctx, tester);
 
-        const reports = profile
-            ? await ctx.db
-                  .query("feedbackReports")
-                  .withIndex("by_userId", q => q.eq("userId", profile.userId))
-                  .order("desc")
-                  .collect()
-            : [];
+        // Matched by email, so reports added for someone without an account
+        // (or sent from the website) still show up here
+        const reports = await ctx.db
+            .query("feedbackReports")
+            .withIndex("by_email", q => q.eq("email", tester.email))
+            .order("desc")
+            .collect();
 
         const owner = tester.ownerId ? await ctx.db.get(tester.ownerId) : null;
 

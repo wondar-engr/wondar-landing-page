@@ -144,14 +144,17 @@ export const listComments = query({
     },
 });
 
-// Powers the sidebar badge: comments from other admins this admin hasn't
-// seen. Opening a report clears its comments. Quiet for anyone not signed in
-// as an admin, so the sidebar can ask without error handling.
-export const unreadCommentCount = query({
+// Powers the sidebar badges: new reports this admin hasn't opened yet (open
+// ones only), and comments from other admins they haven't seen. Opening a
+// report clears both. Quiet for anyone not signed in as an admin, so the
+// sidebar can ask without error handling.
+export const unreadCounts = query({
     args: {},
     handler: async ctx => {
         const admin = await getAuthUserProfile(ctx);
-        if (!admin || !isAdminRole(admin.role)) return 0;
+        if (!admin || !isAdminRole(admin.role)) {
+            return { newReports: 0, comments: 0 };
+        }
 
         const reads = await ctx.db
             .query("feedbackReads")
@@ -159,11 +162,48 @@ export const unreadCommentCount = query({
             .collect();
         const lastRead = new Map(reads.map(r => [r.reportId, r.lastReadAt]));
 
-        const comments = await ctx.db.query("feedbackComments").collect();
-        return comments.filter(
+        const openReports = await ctx.db
+            .query("feedbackReports")
+            .withIndex("by_status", q => q.eq("status", "open"))
+            .collect();
+        const newReports = openReports.filter(r => !lastRead.has(r._id)).length;
+
+        const comments = (
+            await ctx.db.query("feedbackComments").collect()
+        ).filter(
             c =>
                 c.authorId !== admin._id &&
                 c._creationTime > (lastRead.get(c.reportId) ?? 0),
         ).length;
+
+        return { newReports, comments };
+    },
+});
+
+// Find the person a report is about, by name or email
+export const searchPeople = query({
+    args: { search: v.string() },
+    handler: async (ctx, { search }) => {
+        await requireAdminProfile(ctx);
+
+        const term = search.trim().toLowerCase();
+        if (term.length < 2) return [];
+
+        const profiles = await ctx.db.query("profiles").collect();
+        return profiles
+            .filter(p =>
+                `${p.firstName ?? ""} ${p.lastName ?? ""} ${p.email}`
+                    .toLowerCase()
+                    .includes(term),
+            )
+            .slice(0, 8)
+            .map(p => ({
+                _id: p._id,
+                name:
+                    `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim() ||
+                    p.email,
+                email: p.email,
+                role: p.currentType,
+            }));
     },
 });

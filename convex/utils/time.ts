@@ -285,3 +285,21 @@ export function getDayInZone(utcMs: number, timezone: string): number {
 
     return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(dayStr);
 }
+
+/** Calendar date (YYYY-MM-DD) and hour (0-23) right now in a given time zone. */
+export function zonedDateAndHour(timeZone: string, now = new Date()) {
+    const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        hourCycle: "h23",
+    }).formatToParts(now);
+    const get = (type: string) => parts.find(p => p.type === type)?.value ?? "";
+
+    return {
+        date: `${get("year")}-${get("month")}-${get("day")}`,
+        hour: Number(get("hour")),
+    };
+}

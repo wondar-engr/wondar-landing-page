@@ -9,15 +9,15 @@
  */
 
 import type * as auth from "../auth.js";
-import type * as bigTen_config from "../bigTen/config.js";
-import type * as bigTen_reminders from "../bigTen/reminders.js";
-import type * as bigTen_roster from "../bigTen/roster.js";
 import type * as crons from "../crons.js";
+import type * as crons_bigTenReminders from "../crons/bigTenReminders.js";
+import type * as crons_bigTenSummary from "../crons/bigTenSummary.js";
 import type * as crons_bookingContext from "../crons/bookingContext.js";
 import type * as crons_bookingFns from "../crons/bookingFns.js";
 import type * as crons_bookingReminders from "../crons/bookingReminders.js";
 import type * as crons_bookings from "../crons/bookings.js";
 import type * as crons_quoteFns from "../crons/quoteFns.js";
+import type * as data_bigTenRoster from "../data/bigTenRoster.js";
 import type * as data_categoryTree from "../data/categoryTree.js";
 import type * as email from "../email.js";
 import type * as http from "../http.js";
@@ -30,6 +30,7 @@ import type * as lib_admin_feedback_mutations from "../lib/admin/feedback/mutati
 import type * as lib_admin_feedback_queries from "../lib/admin/feedback/queries.js";
 import type * as lib_admin_payments_mutations from "../lib/admin/payments/mutations.js";
 import type * as lib_admin_payments_queries from "../lib/admin/payments/queries.js";
+import type * as lib_admin_platformProfits_queries from "../lib/admin/platformProfits/queries.js";
 import type * as lib_admin_profile from "../lib/admin/profile.js";
 import type * as lib_admin_services from "../lib/admin/services.js";
 import type * as lib_admin_services_mutations from "../lib/admin/services/mutations.js";
@@ -55,6 +56,7 @@ import type * as lib_internalQueries_settings from "../lib/internalQueries/setti
 import type * as lib_internalQueries_stripe from "../lib/internalQueries/stripe.js";
 import type * as lib_internalQueries_transactions from "../lib/internalQueries/transactions.js";
 import type * as lib_notifications_index from "../lib/notifications/index.js";
+import type * as lib_public_contact_mutations from "../lib/public/contact/mutations.js";
 import type * as lib_public_deletion_mutations from "../lib/public/deletion/mutations.js";
 import type * as lib_public_publicFns from "../lib/public/publicFns.js";
 import type * as lib_stripe_backfill from "../lib/stripe/backfill.js";
@@ -144,6 +146,7 @@ import type * as tests_public from "../tests/public.js";
 import type * as twilio from "../twilio.js";
 import type * as unions from "../unions.js";
 import type * as utils_access from "../utils/access.js";
+import type * as utils_constants_bigTen from "../utils/constants/bigTen.js";
 import type * as utils_emails_clientOnboardingEmail from "../utils/emails/clientOnboardingEmail.js";
 import type * as utils_emails_components_BaseEmail from "../utils/emails/components/BaseEmail.js";
 import type * as utils_emails_components_emailLayout from "../utils/emails/components/emailLayout.js";
@@ -167,6 +170,7 @@ import type * as utils_errorUtils from "../utils/errorUtils.js";
 import type * as utils_helpers from "../utils/helpers.js";
 import type * as utils_helpers_address from "../utils/helpers/address.js";
 import type * as utils_helpers_auth from "../utils/helpers/auth.js";
+import type * as utils_helpers_bigTen from "../utils/helpers/bigTen.js";
 import type * as utils_helpers_bookings from "../utils/helpers/bookings.js";
 import type * as utils_helpers_cancellations from "../utils/helpers/cancellations.js";
 import type * as utils_helpers_creative from "../utils/helpers/creative.js";
@@ -187,15 +191,15 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
-  "bigTen/config": typeof bigTen_config;
-  "bigTen/reminders": typeof bigTen_reminders;
-  "bigTen/roster": typeof bigTen_roster;
   crons: typeof crons;
+  "crons/bigTenReminders": typeof crons_bigTenReminders;
+  "crons/bigTenSummary": typeof crons_bigTenSummary;
   "crons/bookingContext": typeof crons_bookingContext;
   "crons/bookingFns": typeof crons_bookingFns;
   "crons/bookingReminders": typeof crons_bookingReminders;
   "crons/bookings": typeof crons_bookings;
   "crons/quoteFns": typeof crons_quoteFns;
+  "data/bigTenRoster": typeof data_bigTenRoster;
   "data/categoryTree": typeof data_categoryTree;
   email: typeof email;
   http: typeof http;
@@ -208,6 +212,7 @@ declare const fullApi: ApiFromModules<{
   "lib/admin/feedback/queries": typeof lib_admin_feedback_queries;
   "lib/admin/payments/mutations": typeof lib_admin_payments_mutations;
   "lib/admin/payments/queries": typeof lib_admin_payments_queries;
+  "lib/admin/platformProfits/queries": typeof lib_admin_platformProfits_queries;
   "lib/admin/profile": typeof lib_admin_profile;
   "lib/admin/services": typeof lib_admin_services;
   "lib/admin/services/mutations": typeof lib_admin_services_mutations;
@@ -233,6 +238,7 @@ declare const fullApi: ApiFromModules<{
   "lib/internalQueries/stripe": typeof lib_internalQueries_stripe;
   "lib/internalQueries/transactions": typeof lib_internalQueries_transactions;
   "lib/notifications/index": typeof lib_notifications_index;
+  "lib/public/contact/mutations": typeof lib_public_contact_mutations;
   "lib/public/deletion/mutations": typeof lib_public_deletion_mutations;
   "lib/public/publicFns": typeof lib_public_publicFns;
   "lib/stripe/backfill": typeof lib_stripe_backfill;
@@ -322,6 +328,7 @@ declare const fullApi: ApiFromModules<{
   twilio: typeof twilio;
   unions: typeof unions;
   "utils/access": typeof utils_access;
+  "utils/constants/bigTen": typeof utils_constants_bigTen;
   "utils/emails/clientOnboardingEmail": typeof utils_emails_clientOnboardingEmail;
   "utils/emails/components/BaseEmail": typeof utils_emails_components_BaseEmail;
   "utils/emails/components/emailLayout": typeof utils_emails_components_emailLayout;
@@ -345,6 +352,7 @@ declare const fullApi: ApiFromModules<{
   "utils/helpers": typeof utils_helpers;
   "utils/helpers/address": typeof utils_helpers_address;
   "utils/helpers/auth": typeof utils_helpers_auth;
+  "utils/helpers/bigTen": typeof utils_helpers_bigTen;
   "utils/helpers/bookings": typeof utils_helpers_bookings;
   "utils/helpers/cancellations": typeof utils_helpers_cancellations;
   "utils/helpers/creative": typeof utils_helpers_creative;

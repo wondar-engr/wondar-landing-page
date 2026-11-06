@@ -940,6 +940,12 @@ const schema = defineSchema({
         updatedAt: v.optional(v.number()),
         resolvedBy: v.optional(v.id("profiles")),
         resolvedAt: v.optional(v.number()),
+        // Where it came from. Reports from before this field were from the app.
+        source: v.optional(
+            v.union(v.literal("APP"), v.literal("ADMIN"), v.literal("WEBSITE")),
+        ),
+        reporterName: v.optional(v.string()),
+        createdBy: v.optional(v.id("profiles")), // admin who added it
         // Triage, set by admins
         severity: v.optional(
             v.union(
@@ -953,6 +959,7 @@ const schema = defineSchema({
         retestResult: v.optional(v.union(v.literal("PASS"), v.literal("FAIL"))),
     })
         .index("by_userId", ["userId"])
+        .index("by_email", ["email"])
         .index("by_type", ["type"])
         .index("by_status", ["status"]),
     // Admin discussion thread under each bug report / feature request

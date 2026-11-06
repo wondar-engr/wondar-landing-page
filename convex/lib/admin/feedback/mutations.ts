@@ -142,3 +142,80 @@ export const updateTriage = mutation({
         return { success: true };
     },
 });
+
+const MAX_TITLE = 150;
+const MAX_DESCRIPTION = 4000;
+
+// An admin logs a report on someone's behalf, e.g. one that came in over
+// WhatsApp or from a user who can't get into the app
+export const createReport = mutation({
+    args: {
+        type: v.union(v.literal("BUG"), v.literal("FEATURE")),
+        title: v.string(),
+        description: v.string(),
+        userRole: v.union(v.literal("CLIENT"), v.literal("CREATIVE")),
+        email: v.string(), // who the report is about; ties it to their account
+        reporterName: v.optional(v.string()),
+        screenName: v.optional(v.string()),
+        channel: v.optional(v.string()), // how it reached us, e.g. WhatsApp
+    },
+    handler: async (ctx, args) => {
+        const admin = await requireAdminProfile(ctx);
+
+        const title = args.title.trim();
+        const description = args.description.trim();
+        const email = args.email.trim().toLowerCase();
+        if (!title) throwAppError("Add a title.");
+        if (!description) throwAppError("Describe what happened.");
+        if (title.length > MAX_TITLE)
+            throwAppError(`Titles can be up to ${MAX_TITLE} characters.`);
+        if (description.length > MAX_DESCRIPTION)
+            throwAppError(
+                `Descriptions can be up to ${MAX_DESCRIPTION} characters.`,
+            );
+        if (!/^\S+@\S+\.\S+$/.test(email))
+            throwAppError(
+                "Enter a valid email for the person who reported it.",
+            );
+
+        const profile = await ctx.db
+            .query("profiles")
+            .withIndex("by_email", q => q.eq("email", email))
+            .first();
+
+        const adminName =
+            `${admin.firstName ?? ""} ${admin.lastName ?? ""}`.trim() ||
+            admin.email;
+        const reporterName =
+            args.reporterName?.trim() ||
+            (profile
+                ? `${profile.firstName ?? ""} ${profile.lastName ?? ""}`.trim()
+                : "") ||
+            undefined;
+
+        const id = await ctx.db.insert("feedbackReports", {
+            userId: profile?.userId ?? `external:${email}`,
+            email,
+            type: args.type,
+            title,
+            description,
+            screenName: args.screenName?.trim() || undefined,
+            deviceInfo: `Added by ${adminName}${args.channel ? ` (reported via ${args.channel})` : ""}`,
+            appVersion: "N/A",
+            userRole: args.userRole,
+            status: "open",
+            source: "ADMIN",
+            reporterName,
+            createdBy: admin._id,
+        });
+
+        // The creator wrote it, so it isn't unread for them
+        await ctx.db.insert("feedbackReads", {
+            reportId: id,
+            profileId: admin._id,
+            lastReadAt: Date.now(),
+        });
+
+        return { success: true, id };
+    },
+});

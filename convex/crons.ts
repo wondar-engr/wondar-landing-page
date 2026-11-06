@@ -52,12 +52,24 @@ crons.cron(
 crons.cron(
     "big-ten-daily-reminder-cdt",
     "0 23 * * *",
-    internal.bigTen.reminders.sendDailyReminders,
+    internal.crons.bigTenReminders.sendDailyReminders,
 );
 crons.cron(
     "big-ten-daily-reminder-cst",
     "0 0 * * *",
-    internal.bigTen.reminders.sendDailyReminders,
+    internal.crons.bigTenReminders.sendDailyReminders,
+);
+
+// Big Ten end-of-day Telegram report, 11 PM US Central (same two-hour trick)
+crons.cron(
+    "big-ten-daily-summary-cdt",
+    "0 4 * * *",
+    internal.crons.bigTenSummary.sendDailySummary,
+);
+crons.cron(
+    "big-ten-daily-summary-cst",
+    "0 5 * * *",
+    internal.crons.bigTenSummary.sendDailySummary,
 );
 
 export default crons;

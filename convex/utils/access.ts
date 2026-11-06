@@ -20,6 +20,7 @@ export const ACCESS = {
 
     // Money, platform configuration and role management
     payments: SUPER_ONLY,
+    platformProfits: SUPER_ONLY,
     settings: SUPER_ONLY,
     serviceCategories: SUPER_ONLY,
     roles: SUPER_ONLY,
@@ -48,6 +49,7 @@ export function hasAccess(
 const ROUTE_AREAS: [string, AccessArea][] = [
     ["/dashboard/service-categories", "serviceCategories"],
     ["/dashboard/payments", "payments"],
+    ["/dashboard/platform-profits", "platformProfits"],
     ["/dashboard/settings", "settings"],
     ["/dashboard/users", "users"],
     ["/dashboard/services", "services"],
