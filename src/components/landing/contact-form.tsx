@@ -1,92 +1,40 @@
 "use client";
 
 import { useState } from "react";
-import { useAction, useMutation } from "convex/react";
-import { CheckCircle, ImagePlus, Loader2, X } from "lucide-react";
+import { useMutation } from "convex/react";
+import { CheckCircle, Loader2 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 
 const inputClass =
     "w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-forest-green focus:outline-none text-slate";
 
-const MAX_IMAGES = 3;
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
+const TOPICS = [
+    "General question",
+    "Support",
+    "Partnership",
+    "Press",
+    "Other",
+];
 
-type Type = "BUG" | "FEATURE";
-type Role = "CLIENT" | "CREATIVE";
-
-// For people who can't get into the app to use the in-app bug report
+// A plain contact form for questions, partnerships or anything else
 export function ContactForm() {
-    const submit = useMutation(api.lib.public.contact.mutations.submitReport);
-    const getUploadUrl = useAction(api.r2.getReportImageUploadUrl);
+    const submit = useMutation(api.lib.public.contact.mutations.submit);
 
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
-    const [type, setType] = useState<Type>("BUG");
-    const [role, setRole] = useState<Role>("CREATIVE");
-    const [title, setTitle] = useState("");
+    const [topic, setTopic] = useState(TOPICS[0]);
     const [message, setMessage] = useState("");
     const [website, setWebsite] = useState(""); // honeypot, left empty by people
-    const [images, setImages] = useState<string[]>([]);
-    const [uploading, setUploading] = useState(false);
     const [sending, setSending] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [done, setDone] = useState(false);
-
-    const handleFiles = async (files: FileList | null) => {
-        if (!files) return;
-        setError(null);
-        setUploading(true);
-        try {
-            const uploaded: string[] = [];
-            for (const file of Array.from(files).slice(
-                0,
-                MAX_IMAGES - images.length,
-            )) {
-                if (!IMAGE_TYPES.includes(file.type)) {
-                    setError("Please use PNG, JPG or WebP images.");
-                    continue;
-                }
-                if (file.size > MAX_IMAGE_BYTES) {
-                    setError("Each image must be under 5 MB.");
-                    continue;
-                }
-                const { uploadUrl, key } = await getUploadUrl({
-                    contentType: file.type,
-                });
-                const res = await fetch(uploadUrl, {
-                    method: "PUT",
-                    body: file,
-                    headers: { "Content-Type": file.type },
-                });
-                if (!res.ok) throw new Error("Upload failed");
-                uploaded.push(
-                    `${process.env.NEXT_PUBLIC_CLOUDFLARE_R2_BUCKET_URL}/${key}`,
-                );
-            }
-            setImages(prev => [...prev, ...uploaded]);
-        } catch {
-            setError("We couldn't upload that image. Please try again.");
-        } finally {
-            setUploading(false);
-        }
-    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setSending(true);
         setError(null);
         try {
-            const res = await submit({
-                name,
-                email,
-                type,
-                role,
-                title,
-                message,
-                screenshots: images.length ? images : undefined,
-                website,
-            });
+            const res = await submit({ name, email, topic, message, website });
             if (!res.success) {
                 setError(
                     res.error ?? "Something went wrong. Please try again.",
@@ -110,8 +58,8 @@ export function ContactForm() {
                         Thanks, we got it
                     </h2>
                     <p className="text-slate/60">
-                        Our team has your message and will follow up at{" "}
-                        {email.trim()}.
+                        We&apos;ve sent a confirmation to {email.trim()} and
+                        will reply soon.
                     </p>
                 </div>
             </section>
@@ -149,54 +97,28 @@ export function ContactForm() {
                             required
                         />
                     </div>
-                    <div>
-                        <label className="text-sm font-medium text-slate/70 mb-1 block">
-                            What is this about?
-                        </label>
-                        <select
-                            className={inputClass}
-                            value={type}
-                            onChange={e => setType(e.target.value as Type)}
-                        >
-                            <option value="BUG">
-                                Something isn&apos;t working
-                            </option>
-                            <option value="FEATURE">
-                                An idea or suggestion
-                            </option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="text-sm font-medium text-slate/70 mb-1 block">
-                            I use Wondar as a
-                        </label>
-                        <select
-                            className={inputClass}
-                            value={role}
-                            onChange={e => setRole(e.target.value as Role)}
-                        >
-                            <option value="CREATIVE">Creative</option>
-                            <option value="CLIENT">Client</option>
-                        </select>
-                    </div>
                 </div>
 
                 <div>
                     <label className="text-sm font-medium text-slate/70 mb-1 block">
-                        Short title
+                        What is this about?
                     </label>
-                    <input
+                    <select
                         className={inputClass}
-                        value={title}
-                        onChange={e => setTitle(e.target.value)}
-                        maxLength={150}
-                        placeholder="e.g. I can't log in"
-                        required
-                    />
+                        value={topic}
+                        onChange={e => setTopic(e.target.value)}
+                    >
+                        {TOPICS.map(t => (
+                            <option key={t} value={t}>
+                                {t}
+                            </option>
+                        ))}
+                    </select>
                 </div>
+
                 <div>
                     <label className="text-sm font-medium text-slate/70 mb-1 block">
-                        Tell us what happened
+                        Message
                     </label>
                     <textarea
                         className={inputClass}
@@ -204,62 +126,9 @@ export function ContactForm() {
                         value={message}
                         onChange={e => setMessage(e.target.value)}
                         maxLength={4000}
-                        placeholder="What did you do, what did you expect, and what happened instead?"
+                        placeholder="How can we help?"
                         required
                     />
-                </div>
-
-                <div>
-                    <label className="text-sm font-medium text-slate/70 mb-2 block">
-                        Screenshots (optional, up to {MAX_IMAGES})
-                    </label>
-                    <div className="flex flex-wrap gap-3">
-                        {images.map(url => (
-                            <div key={url} className="relative">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                    src={url}
-                                    alt="Attached screenshot"
-                                    className="w-20 h-20 rounded-xl border border-gray-200 object-cover"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setImages(prev =>
-                                            prev.filter(u => u !== url),
-                                        )
-                                    }
-                                    className="absolute -top-2 -right-2 bg-slate text-white rounded-full p-1"
-                                    aria-label="Remove image"
-                                >
-                                    <X className="w-3 h-3" />
-                                </button>
-                            </div>
-                        ))}
-                        {images.length < MAX_IMAGES && (
-                            <label className="w-20 h-20 rounded-xl border border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-xs text-slate/60 cursor-pointer hover:bg-gray-50">
-                                {uploading ? (
-                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                ) : (
-                                    <>
-                                        <ImagePlus className="w-5 h-5" />
-                                        Add
-                                    </>
-                                )}
-                                <input
-                                    type="file"
-                                    accept="image/png,image/jpeg,image/webp"
-                                    multiple
-                                    className="hidden"
-                                    disabled={uploading}
-                                    onChange={e => {
-                                        void handleFiles(e.target.files);
-                                        e.target.value = "";
-                                    }}
-                                />
-                            </label>
-                        )}
-                    </div>
                 </div>
 
                 {/* Hidden from people; bots tend to fill every field */}
@@ -279,7 +148,7 @@ export function ContactForm() {
 
                 <button
                     type="submit"
-                    disabled={sending || uploading}
+                    disabled={sending}
                     className="w-full py-4 bg-forest-green text-white rounded-full font-semibold hover:bg-forest-green/90 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
                 >
                     {sending ? (
@@ -288,7 +157,7 @@ export function ContactForm() {
                             Sending...
                         </>
                     ) : (
-                        "Send to the Wondar team"
+                        "Send message"
                     )}
                 </button>
             </form>
