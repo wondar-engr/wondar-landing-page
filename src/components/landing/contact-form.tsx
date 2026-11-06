@@ -1,12 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
-import { CheckCircle, Loader2 } from "lucide-react";
+import { useAction, useMutation } from "convex/react";
+import { CheckCircle, ImagePlus, Loader2, X } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 
 const inputClass =
     "w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-forest-green focus:outline-none text-slate";
+
+const MAX_IMAGES = 3;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
 type Type = "BUG" | "FEATURE";
 type Role = "CLIENT" | "CREATIVE";
@@ -14,6 +18,7 @@ type Role = "CLIENT" | "CREATIVE";
 // For people who can't get into the app to use the in-app bug report
 export function ContactForm() {
     const submit = useMutation(api.lib.public.contact.mutations.submitReport);
+    const getUploadUrl = useAction(api.r2.getReportImageUploadUrl);
 
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
@@ -22,9 +27,50 @@ export function ContactForm() {
     const [title, setTitle] = useState("");
     const [message, setMessage] = useState("");
     const [website, setWebsite] = useState(""); // honeypot, left empty by people
+    const [images, setImages] = useState<string[]>([]);
+    const [uploading, setUploading] = useState(false);
     const [sending, setSending] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [done, setDone] = useState(false);
+
+    const handleFiles = async (files: FileList | null) => {
+        if (!files) return;
+        setError(null);
+        setUploading(true);
+        try {
+            const uploaded: string[] = [];
+            for (const file of Array.from(files).slice(
+                0,
+                MAX_IMAGES - images.length,
+            )) {
+                if (!IMAGE_TYPES.includes(file.type)) {
+                    setError("Please use PNG, JPG or WebP images.");
+                    continue;
+                }
+                if (file.size > MAX_IMAGE_BYTES) {
+                    setError("Each image must be under 5 MB.");
+                    continue;
+                }
+                const { uploadUrl, key } = await getUploadUrl({
+                    contentType: file.type,
+                });
+                const res = await fetch(uploadUrl, {
+                    method: "PUT",
+                    body: file,
+                    headers: { "Content-Type": file.type },
+                });
+                if (!res.ok) throw new Error("Upload failed");
+                uploaded.push(
+                    `${process.env.NEXT_PUBLIC_CLOUDFLARE_R2_BUCKET_URL}/${key}`,
+                );
+            }
+            setImages(prev => [...prev, ...uploaded]);
+        } catch {
+            setError("We couldn't upload that image. Please try again.");
+        } finally {
+            setUploading(false);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -38,6 +84,7 @@ export function ContactForm() {
                 role,
                 title,
                 message,
+                screenshots: images.length ? images : undefined,
                 website,
             });
             if (!res.success) {
@@ -162,6 +209,59 @@ export function ContactForm() {
                     />
                 </div>
 
+                <div>
+                    <label className="text-sm font-medium text-slate/70 mb-2 block">
+                        Screenshots (optional, up to {MAX_IMAGES})
+                    </label>
+                    <div className="flex flex-wrap gap-3">
+                        {images.map(url => (
+                            <div key={url} className="relative">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                    src={url}
+                                    alt="Attached screenshot"
+                                    className="w-20 h-20 rounded-xl border border-gray-200 object-cover"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setImages(prev =>
+                                            prev.filter(u => u !== url),
+                                        )
+                                    }
+                                    className="absolute -top-2 -right-2 bg-slate text-white rounded-full p-1"
+                                    aria-label="Remove image"
+                                >
+                                    <X className="w-3 h-3" />
+                                </button>
+                            </div>
+                        ))}
+                        {images.length < MAX_IMAGES && (
+                            <label className="w-20 h-20 rounded-xl border border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-xs text-slate/60 cursor-pointer hover:bg-gray-50">
+                                {uploading ? (
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                ) : (
+                                    <>
+                                        <ImagePlus className="w-5 h-5" />
+                                        Add
+                                    </>
+                                )}
+                                <input
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/webp"
+                                    multiple
+                                    className="hidden"
+                                    disabled={uploading}
+                                    onChange={e => {
+                                        void handleFiles(e.target.files);
+                                        e.target.value = "";
+                                    }}
+                                />
+                            </label>
+                        )}
+                    </div>
+                </div>
+
                 {/* Hidden from people; bots tend to fill every field */}
                 <div className="hidden" aria-hidden="true">
                     <label>
@@ -179,7 +279,7 @@ export function ContactForm() {
 
                 <button
                     type="submit"
-                    disabled={sending}
+                    disabled={sending || uploading}
                     className="w-full py-4 bg-forest-green text-white rounded-full font-semibold hover:bg-forest-green/90 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
                 >
                     {sending ? (
