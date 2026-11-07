@@ -88,6 +88,7 @@ export const sendMessageNotification = internalAction({
         );
 
         if (!userSettings) return;
+        if (!userSettings.notifications.channels.phone) return;
 
         const activeTokens = userSettings.devices
             .filter(d => d.isActive && d.pushToken)

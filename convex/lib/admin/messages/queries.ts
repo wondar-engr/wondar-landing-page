@@ -1,6 +1,9 @@
 import { v } from "convex/values";
 import { query } from "@convex/_generated/server";
-import { requireAccessProfile, getAuthUserProfile } from "@convex/utils/helpers/auth";
+import {
+    requireAccessProfile,
+    getAuthUserProfile,
+} from "@convex/utils/helpers/auth";
 import { hasAccess } from "@convex/utils/access";
 
 const statusValidator = v.union(

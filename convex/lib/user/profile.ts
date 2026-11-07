@@ -3,6 +3,7 @@ import { mutation } from "../../_generated/server";
 import { authComponent, getAuthUserId } from "../../auth";
 import { UserTypeUnion } from "../../unions";
 import { CustomError } from "../../utils/errorUtils";
+import { ensureUserSettings } from "../../utils/userSettings";
 import { v } from "convex/values";
 
 export const switchUserType = mutation({
@@ -174,19 +175,8 @@ export const updateProfile = mutation({
                     );
                 }
 
-                await ctx.db.insert("userSettings", {
-                    userId,
-                    notifications: {
-                        channels: { phone: true, email: true },
-                        triggers: {
-                            booking: true,
-                            payment: true,
-                            general: true,
-                            messaging: true,
-                        },
-                    },
-                    devices: [],
-                });
+                // Reuses the row the device registration may have made already
+                await ensureUserSettings(ctx, userId);
 
                 await ctx.scheduler.runAfter(
                     0,

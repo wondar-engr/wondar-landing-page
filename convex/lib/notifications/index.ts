@@ -65,6 +65,11 @@ export async function sendNotification(
         return { notificationId, pushSent: false, reason: "disabled_by_user" };
     }
 
+    // Push switched off in the app ("phone" is the push channel)
+    if (!userSettings.notifications.channels.phone) {
+        return { notificationId, pushSent: false, reason: "push_disabled" };
+    }
+
     // 4. Get active devices with push tokens
     const activeDevices = userSettings.devices.filter(
         device => device.isActive && device.pushToken,
@@ -214,6 +219,10 @@ export async function sendPushOnly(
     const triggerKey = mapTypeToTrigger(type);
     if (triggerKey && !userSettings.notifications.triggers[triggerKey]) {
         return { pushSent: false, reason: "disabled_by_user" };
+    }
+
+    if (!userSettings.notifications.channels.phone) {
+        return { pushSent: false, reason: "push_disabled" };
     }
 
     const activeDevices = userSettings.devices.filter(

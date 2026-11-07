@@ -132,6 +132,9 @@ import type * as scripts_backfillOfflineSettlement from "../scripts/backfillOffl
 import type * as scripts_bigTen from "../scripts/bigTen.js";
 import type * as scripts_platformLedger from "../scripts/platformLedger.js";
 import type * as scripts_roles from "../scripts/roles.js";
+import type * as scripts_stripeBalance from "../scripts/stripeBalance.js";
+import type * as scripts_userSettings from "../scripts/userSettings.js";
+import type * as scripts_users from "../scripts/users.js";
 import type * as seed_systemConfig from "../seed/systemConfig.js";
 import type * as stripe_handlers_accountHandlers from "../stripe/handlers/accountHandlers.js";
 import type * as stripe_handlers_index from "../stripe/handlers/index.js";
@@ -187,6 +190,7 @@ import type * as utils_limits from "../utils/limits.js";
 import type * as utils_paymentConfig from "../utils/paymentConfig.js";
 import type * as utils_payoutFee from "../utils/payoutFee.js";
 import type * as utils_time from "../utils/time.js";
+import type * as utils_userSettings from "../utils/userSettings.js";
 
 import type {
   ApiFromModules,
@@ -319,6 +323,9 @@ declare const fullApi: ApiFromModules<{
   "scripts/bigTen": typeof scripts_bigTen;
   "scripts/platformLedger": typeof scripts_platformLedger;
   "scripts/roles": typeof scripts_roles;
+  "scripts/stripeBalance": typeof scripts_stripeBalance;
+  "scripts/userSettings": typeof scripts_userSettings;
+  "scripts/users": typeof scripts_users;
   "seed/systemConfig": typeof seed_systemConfig;
   "stripe/handlers/accountHandlers": typeof stripe_handlers_accountHandlers;
   "stripe/handlers/index": typeof stripe_handlers_index;
@@ -374,6 +381,7 @@ declare const fullApi: ApiFromModules<{
   "utils/paymentConfig": typeof utils_paymentConfig;
   "utils/payoutFee": typeof utils_payoutFee;
   "utils/time": typeof utils_time;
+  "utils/userSettings": typeof utils_userSettings;
 }>;
 
 /**

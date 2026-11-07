@@ -1,5 +1,5 @@
 import { Doc } from "../../convex/_generated/dataModel";
-import { mutation } from "../_generated/server";
+import { internalMutation } from "../_generated/server";
 
 // Default system configuration values
 const DEFAULT_CONFIG: Array<{
@@ -13,7 +13,7 @@ const DEFAULT_CONFIG: Array<{
     // PAYMENT FEES
     // ==========================================
     {
-        key: "platform_fee_percent",
+        key: "platform_fee_percent_total",
         value: 20,
         description: "Total platform fee percentage on service fee",
         category: "FEES" as const,
@@ -246,7 +246,7 @@ const TEST_CONFIG = {
     updatedAt: Date.now(),
 };
 
-export const seedSystemConfig = mutation({
+export const seedSystemConfig = internalMutation({
     args: {},
     handler: async ctx => {
         const now = Date.now();
@@ -273,7 +273,7 @@ export const seedSystemConfig = mutation({
     },
 });
 
-export const seedAppStatusSystemConfig = mutation({
+export const seedAppStatusSystemConfig = internalMutation({
     args: {},
     handler: async ctx => {
         const now = Date.now();

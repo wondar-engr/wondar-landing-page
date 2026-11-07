@@ -22,6 +22,7 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
     return betterAuth({
         trustedOrigins: [
             "wondarapp://",
+            "https://admin.wondarapp.com",
             "http://localhost:8081", // Expo Dev Tools
             "exp://192.168.x.x:8081", // Your local IP for physical devices
             // Development mode - Expo's exp:// scheme with local IP ranges

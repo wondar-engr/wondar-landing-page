@@ -409,6 +409,12 @@ export const handleChargeRefunded = internalMutation({
     },
 });
 
+// When the money actually reached the bank: Stripe's arrival date, or now if
+// that date is somehow in the future
+function paidAtFromArrival(arrivalDate: number): number {
+    return Math.min(arrivalDate * 1000, Date.now());
+}
+
 // ==========================================
 // PAYOUT EVENTS
 // ==========================================
@@ -441,7 +447,7 @@ export const handlePayoutPaid = internalMutation({
 
         await ctx.db.patch(payout._id, {
             status: "PAID",
-            paidAt: Date.now(),
+            paidAt: paidAtFromArrival(args.arrivalDate),
             updatedAt: Date.now(),
         });
 
@@ -743,7 +749,9 @@ export const syncPayout = internalMutation({
                 status,
                 arrivalDate: args.arrivalDate,
                 type: args.method === "instant" ? "INSTANT" : "MANUAL",
-                ...(status === "PAID" ? { paidAt: now } : {}),
+                ...(status === "PAID"
+                    ? { paidAt: paidAtFromArrival(args.arrivalDate) }
+                    : {}),
                 failureCode: args.failureCode ?? undefined,
                 failureMessage: args.failureMessage ?? undefined,
                 updatedAt: now,
@@ -771,7 +779,9 @@ export const syncPayout = internalMutation({
         await ctx.db.patch(existing._id, {
             status,
             arrivalDate: args.arrivalDate,
-            ...(status === "PAID" && !existing.paidAt ? { paidAt: now } : {}),
+            ...(status === "PAID" && !existing.paidAt
+                ? { paidAt: paidAtFromArrival(args.arrivalDate) }
+                : {}),
             ...(status === "FAILED"
                 ? {
                       failureCode: args.failureCode ?? undefined,

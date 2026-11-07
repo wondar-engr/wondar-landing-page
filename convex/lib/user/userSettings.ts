@@ -2,11 +2,24 @@ import { mutation, query } from "../../_generated/server";
 import { getAuthUserId } from "../../auth";
 import { PlatformDeviceUnion } from "../../unions";
 import { CustomError } from "../../utils/errorUtils";
+import {
+    ensureUserSettings,
+    getUserSettingsRow,
+    upsertDeviceForUser,
+} from "../../utils/userSettings";
 import { v } from "convex/values";
+
+const fail = (err: unknown, fallback: string) => {
+    console.log("[ERR]:", err);
+    return {
+        status: false as const,
+        error: err instanceof Error ? err.message : fallback,
+    };
+};
 
 /**
  * Add or update a device
- * Called when notifications permission is granted
+ * Kept for older app builds; same logic as core/settingsFns.upsertDevice.
  */
 export const upsertDevice = mutation({
     args: {
@@ -22,58 +35,10 @@ export const upsertDevice = mutation({
             const userId = await getAuthUserId(ctx);
             if (!userId) throw new CustomError("Unauthorized");
 
-            const settings = await ctx.db
-                .query("userSettings")
-                .withIndex("by_userId", q => q.eq("userId", userId))
-                .unique();
-
-            if (!settings) {
-                throw new CustomError(
-                    "User settings not found. Complete onboarding first.",
-                );
-            }
-
-            const now = Date.now();
-            const existingDeviceIndex = settings.devices.findIndex(
-                d => d.deviceId === args.deviceId,
-            );
-
-            const updatedDevices = [...settings.devices];
-
-            if (existingDeviceIndex >= 0) {
-                // Update existing device
-                updatedDevices[existingDeviceIndex] = {
-                    ...updatedDevices[existingDeviceIndex],
-                    ...args,
-                    pushToken: args.pushToken,
-                    isActive: true,
-                    lastUsed: now,
-                };
-            } else {
-                // Add new device
-                updatedDevices.push({
-                    ...args,
-                    isActive: true,
-                    lastUsed: now,
-                    createdAt: now,
-                });
-            }
-
-            await ctx.db.patch(settings._id, {
-                devices: updatedDevices,
-                updatedAt: now,
-            });
-
+            await upsertDeviceForUser(ctx, userId, args);
             return { status: true };
         } catch (err: unknown) {
-            console.log("[ERR]:", err);
-            return {
-                status: false,
-                error:
-                    err instanceof Error
-                        ? err.message
-                        : "Failed to upsert device.",
-            };
+            return fail(err, "Failed to upsert device.");
         }
     },
 });
@@ -92,46 +57,27 @@ export const updateDevicePushToken = mutation({
             const userId = await getAuthUserId(ctx);
             if (!userId) throw new CustomError("Unauthorized");
 
-            const settings = await ctx.db
-                .query("userSettings")
-                .withIndex("by_userId", q => q.eq("userId", userId))
-                .unique();
-
-            if (!settings) {
-                throw new CustomError(
-                    "User settings not found. Complete onboarding first.",
-                );
-            }
-
-            const updatedDevices = settings.devices
-                ? settings.devices.map(device =>
-                      device.deviceId === deviceId
-                          ? { ...device, pushToken, lastUsed: Date.now() }
-                          : device,
-                  )
-                : [];
+            const settings = await ensureUserSettings(ctx, userId);
 
             await ctx.db.patch(settings._id, {
-                devices: updatedDevices,
+                devices: settings.devices.map(device =>
+                    device.deviceId === deviceId
+                        ? { ...device, pushToken, lastUsed: Date.now() }
+                        : device,
+                ),
                 updatedAt: Date.now(),
             });
 
             return { status: true };
         } catch (err: unknown) {
-            console.log("[ERR]:", err);
-            return {
-                status: false,
-                error:
-                    err instanceof Error
-                        ? err.message
-                        : "Failed to update device push token.",
-            };
+            return fail(err, "Failed to update device push token.");
         }
     },
 });
 
 /**
- * Remove a device
+ * Remove a device (used on log out so the next person on this phone, or the
+ * old account, stops getting pushes meant for someone else)
  */
 export const removeDevice = mutation({
     args: {
@@ -142,36 +88,19 @@ export const removeDevice = mutation({
             const userId = await getAuthUserId(ctx);
             if (!userId) throw new CustomError("Unauthorized");
 
-            const settings = await ctx.db
-                .query("userSettings")
-                .withIndex("by_userId", q => q.eq("userId", userId))
-                .unique();
-
-            if (!settings) {
-                throw new CustomError(
-                    "User settings not found. Complete onboarding first.",
-                );
-            }
-
-            const updatedDevices = settings.devices.filter(
-                device => device.deviceId !== deviceId,
-            );
+            const settings = await getUserSettingsRow(ctx, userId);
+            if (!settings) return { status: true };
 
             await ctx.db.patch(settings._id, {
-                devices: updatedDevices,
+                devices: settings.devices.filter(
+                    device => device.deviceId !== deviceId,
+                ),
                 updatedAt: Date.now(),
             });
 
             return { status: true };
         } catch (err: unknown) {
-            console.log("[ERR]:", err);
-            return {
-                status: false,
-                error:
-                    err instanceof Error
-                        ? err.message
-                        : "Failed to remove device.",
-            };
+            return fail(err, "Failed to remove device.");
         }
     },
 });
@@ -185,32 +114,29 @@ export const getUserSettings = query({
         const userId = await getAuthUserId(ctx);
         if (!userId) return null;
 
-        return await ctx.db
-            .query("userSettings")
-            .withIndex("by_userId", q => q.eq("userId", userId))
-            .unique();
+        return await getUserSettingsRow(ctx, userId);
     },
 });
 
 /**
  * Update notification preferences
+ * Send only what changed: { channels: { phone: false } } turns push off and
+ * leaves everything else as it was. "phone" is the push channel.
  */
 export const updateNotificationPreferences = mutation({
     args: {
         channels: v.optional(
             v.object({
-                phone: v.boolean(),
-                email: v.boolean(),
-                push: v.boolean(),
+                phone: v.optional(v.boolean()),
+                email: v.optional(v.boolean()),
             }),
         ),
         triggers: v.optional(
             v.object({
-                booking: v.boolean(),
-                messaging: v.boolean(),
-                payment: v.boolean(),
-                general: v.boolean(),
-                marketing: v.boolean(),
+                booking: v.optional(v.boolean()),
+                messaging: v.optional(v.boolean()),
+                payment: v.optional(v.boolean()),
+                general: v.optional(v.boolean()),
             }),
         ),
     },
@@ -219,36 +145,27 @@ export const updateNotificationPreferences = mutation({
             const userId = await getAuthUserId(ctx);
             if (!userId) throw new CustomError("Unauthorized");
 
-            const settings = await ctx.db
-                .query("userSettings")
-                .withIndex("by_userId", q => q.eq("userId", userId))
-                .unique();
+            const settings = await ensureUserSettings(ctx, userId);
+            const current = settings.notifications;
 
-            if (!settings)
-                throw new CustomError(
-                    "User settings not found. Complete onboarding first.",
+            const strip = <T extends Record<string, boolean | undefined>>(
+                o: T | undefined,
+            ) =>
+                Object.fromEntries(
+                    Object.entries(o ?? {}).filter(([, x]) => x !== undefined),
                 );
 
-            const updatedNotifications = {
-                channels: channels || settings.notifications.channels,
-                triggers: triggers || settings.notifications.triggers,
-            };
-
             await ctx.db.patch(settings._id, {
-                notifications: updatedNotifications,
+                notifications: {
+                    channels: { ...current.channels, ...strip(channels) },
+                    triggers: { ...current.triggers, ...strip(triggers) },
+                },
                 updatedAt: Date.now(),
             });
 
             return { status: true };
         } catch (err: unknown) {
-            console.log("[ERR]:", err);
-            return {
-                status: false,
-                error:
-                    err instanceof Error
-                        ? err.message
-                        : "Failed to update notification preferences.",
-            };
+            return fail(err, "Failed to update notification preferences.");
         }
     },
 });

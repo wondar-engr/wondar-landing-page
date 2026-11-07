@@ -7,9 +7,7 @@ interface ContactReceivedEmailProps {
 }
 
 // Sent when someone uses the website contact form, so they know it landed
-export const ContactReceivedEmail = ({
-    name,
-}: ContactReceivedEmailProps) => (
+export const ContactReceivedEmail = ({ name }: ContactReceivedEmailProps) => (
     <EmailLayout preview="We got your message and we're on it">
         <Section style={{ padding: "8px 0 0" }}>
             <Text style={paragraph}>Hi {name || "there"},</Text>
