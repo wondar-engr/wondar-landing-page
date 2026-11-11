@@ -5,122 +5,122 @@ import { enrichBooking } from "@convex/utils/helpers/bookings";
 import { requireAdminProfile } from "@convex/utils/helpers/auth";
 
 export const getAllBookings = query({
-    args: {
-        status: v.optional(BookingStatusUnion),
-        search: v.optional(v.string()),
-        limit: v.optional(v.number()),
-    },
-    handler: async (ctx, args) => {
-        await requireAdminProfile(ctx);
+  args: {
+    status: v.optional(BookingStatusUnion),
+    search: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdminProfile(ctx);
 
-        const limit = args.limit ?? 50;
-        const status = args.status ?? "ALL";
+    const limit = args.limit ?? 50;
+    const status = args.status ?? "ALL";
 
-        let bookings;
+    let bookings;
 
-        if (status && status !== "ALL") {
-            bookings = await ctx.db
-                .query("bookings")
-                .withIndex("by_status", q => q.eq("status", status))
-                .order("desc")
-                .take(limit);
-        } else {
-            bookings = await ctx.db.query("bookings").order("desc").take(limit);
-        }
+    if (status && status !== "ALL") {
+      bookings = await ctx.db
+        .query("bookings")
+        .withIndex("by_status", (q) => q.eq("status", status))
+        .order("desc")
+        .take(limit);
+    } else {
+      bookings = await ctx.db.query("bookings").order("desc").take(limit);
+    }
 
-        if (args.search) {
-            const search = args.search.toLowerCase();
-            bookings = bookings.filter(b =>
-                b.orderNo?.toLowerCase().includes(search),
-            );
-        }
+    if (args.search) {
+      const search = args.search.toLowerCase();
+      bookings = bookings.filter((b) =>
+        b.orderNo?.toLowerCase().includes(search),
+      );
+    }
 
-        return Promise.all(bookings.map(b => enrichBooking(ctx, b)));
-    },
+    return Promise.all(bookings.map((b) => enrichBooking(ctx, b)));
+  },
 });
 
 export const getBookingById = query({
-    args: { bookingId: v.id("bookings") },
-    handler: async (ctx, args) => {
-        await requireAdminProfile(ctx);
+  args: { bookingId: v.id("bookings") },
+  handler: async (ctx, args) => {
+    await requireAdminProfile(ctx);
 
-        const booking = await ctx.db.get(args.bookingId);
-        if (!booking) return null;
+    const booking = await ctx.db.get(args.bookingId);
+    if (!booking) return null;
 
-        const enriched = await enrichBooking(ctx, booking);
+    const enriched = await enrichBooking(ctx, booking);
 
-        const dispute = await ctx.db
-            .query("bookingDisputes")
-            .withIndex("by_bookingId", q => q.eq("bookingId", args.bookingId))
-            .first();
+    const dispute = await ctx.db
+      .query("bookingDisputes")
+      .withIndex("by_bookingId", (q) => q.eq("bookingId", args.bookingId))
+      .first();
 
-        return { ...enriched, disputeRecord: dispute ?? null };
-    },
+    return { ...enriched, disputeRecord: dispute ?? null };
+  },
 });
 
 export const getDisputeBookings = query({
-    args: {},
-    handler: async ctx => {
-        await requireAdminProfile(ctx);
+  args: {},
+  handler: async (ctx) => {
+    await requireAdminProfile(ctx);
 
-        const bookings = await ctx.db
-            .query("bookings")
-            .withIndex("by_status", q => q.eq("status", "DISPUTE"))
-            .order("desc")
-            .take(100);
+    const bookings = await ctx.db
+      .query("bookings")
+      .withIndex("by_status", (q) => q.eq("status", "DISPUTE"))
+      .order("desc")
+      .take(100);
 
-        return Promise.all(bookings.map(b => enrichBooking(ctx, b)));
-    },
+    return Promise.all(bookings.map((b) => enrichBooking(ctx, b)));
+  },
 });
 
 export const getBookingStats = query({
-    args: {},
-    handler: async ctx => {
-        await requireAdminProfile(ctx);
+  args: {},
+  handler: async (ctx) => {
+    await requireAdminProfile(ctx);
 
-        const all = await ctx.db.query("bookings").collect();
+    const all = await ctx.db.query("bookings").collect();
 
-        const counts = {
-            total: all.length,
-            pending: 0,
-            confirmed: 0,
-            paid: 0,
-            inProgress: 0,
-            completed: 0,
-            cancelled: 0,
-            dispute: 0,
-            refunded: 0,
-        };
+    const counts = {
+      total: all.length,
+      pending: 0,
+      confirmed: 0,
+      paid: 0,
+      inProgress: 0,
+      completed: 0,
+      cancelled: 0,
+      dispute: 0,
+      refunded: 0,
+    };
 
-        for (const b of all) {
-            switch (b.status) {
-                case "PENDING":
-                    counts.pending++;
-                    break;
-                case "CONFIRMED":
-                    counts.confirmed++;
-                    break;
-                case "PAID":
-                    counts.paid++;
-                    break;
-                case "IN_PROGRESS":
-                    counts.inProgress++;
-                    break;
-                case "COMPLETED":
-                    counts.completed++;
-                    break;
-                case "CANCELLED":
-                    counts.cancelled++;
-                    break;
-                case "DISPUTE":
-                    counts.dispute++;
-                    break;
-                case "REFUNDED":
-                    counts.refunded++;
-                    break;
-            }
-        }
+    for (const b of all) {
+      switch (b.status) {
+        case "PENDING":
+          counts.pending++;
+          break;
+        case "CONFIRMED":
+          counts.confirmed++;
+          break;
+        case "PAID":
+          counts.paid++;
+          break;
+        case "IN_PROGRESS":
+          counts.inProgress++;
+          break;
+        case "COMPLETED":
+          counts.completed++;
+          break;
+        case "CANCELLED":
+          counts.cancelled++;
+          break;
+        case "DISPUTE":
+          counts.dispute++;
+          break;
+        case "REFUNDED":
+          counts.refunded++;
+          break;
+      }
+    }
 
-        return counts;
-    },
+    return counts;
+  },
 });

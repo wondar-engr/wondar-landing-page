@@ -37,7 +37,7 @@ async function syncPayoutRecord(
     ctx: ActionCtx,
     payout: Stripe.Payout,
     stripeAccountId: string | undefined,
-) {
+): Promise<{ changed: boolean }> {
     if (!stripeAccountId) return { changed: false };
 
     return await ctx.runMutation(internal.stripe.webhooks.syncPayout, {

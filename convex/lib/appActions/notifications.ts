@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { Doc } from "../../_generated/dataModel";
 import { internalAction } from "../../_generated/server";
 import { isDevDeployment } from "../../utils/devMode";
 import axios from "axios";
@@ -10,6 +11,7 @@ export type TelegramCategory =
     | "DISPUTES"
     | "ACCOUNTS"
     | "BOOKINGS"
+    | "ADMIN" // admin team activity: assignments, feedback and Big Ten updates
     | "GENERAL"; // fallback — maps to existing TG_GROUP_CHAT_ID
 
 const CATEGORY_CHAT_IDS: Record<TelegramCategory, string> = {
@@ -18,8 +20,11 @@ const CATEGORY_CHAT_IDS: Record<TelegramCategory, string> = {
     DISPUTES: "TG_DISPUTES_CHAT_ID",
     ACCOUNTS: "TG_ACCOUNTS_CHAT_ID",
     BOOKINGS: "TG_BOOKINGS_CHAT_ID",
+    ADMIN: "TG_ADMIN_CHAT_ID", // falls back to the general group until it is set
     GENERAL: "TG_GROUP_CHAT_ID", // ← existing var, nothing breaks
 };
+
+// type UserSettingsDoc = Doc<"userSettings">;
 
 /**
  * Internal action to send Telegram notification
@@ -34,6 +39,7 @@ export const sendTelegramNotification = internalAction({
                 v.literal("DISPUTES"),
                 v.literal("ACCOUNTS"),
                 v.literal("BOOKINGS"),
+                v.literal("ADMIN"),
                 v.literal("GENERAL"),
             ),
         ),
@@ -82,7 +88,9 @@ export const sendMessageNotification = internalAction({
             : "Someone";
 
         // Get push tokens directly
-        const userSettings = await ctx.runQuery(
+        // Typed by hand: inside an action the result type loops back through
+        // the generated api and comes out as any
+        const userSettings: Doc<"userSettings"> | null = await ctx.runQuery(
             internal.lib.internalQueries.settings.getUserSettings,
             { userId: args.otherUserId },
         );
@@ -92,7 +100,7 @@ export const sendMessageNotification = internalAction({
 
         const activeTokens = userSettings.devices
             .filter(d => d.isActive && d.pushToken)
-            .map(d => d.pushToken!);
+            .map(d => d.pushToken as string);
 
         if (activeTokens.length === 0) return;
 

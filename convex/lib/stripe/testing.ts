@@ -3,6 +3,9 @@
 import { v } from "convex/values";
 import { action } from "../../_generated/server";
 import { getStripe } from "./index";
+import { Doc } from "@convex/_generated/dataModel";
+// Need to import internal
+import { internal } from "../../_generated/api";
 
 // ==========================================
 // TESTING ENDPOINTS (remove in production)
@@ -98,7 +101,7 @@ export const cleanupOrphanedAccounts = action({
         const accounts = await stripe.accounts.list({ limit: 100 });
 
         // Get all account IDs from our database
-        const ourAccounts = await ctx.runQuery(
+        const ourAccounts: Doc<"stripeAccounts">[] = await ctx.runQuery(
             internal.lib.stripe.connectQueries.getAllStripeAccountIds,
             {},
         );
@@ -130,6 +133,3 @@ export const cleanupOrphanedAccounts = action({
         };
     },
 });
-
-// Need to import internal
-import { internal } from "../../_generated/api";

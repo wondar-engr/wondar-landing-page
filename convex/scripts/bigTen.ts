@@ -182,6 +182,48 @@ export const seedRoster = internalMutation({
     },
 });
 
+// Adds one tester to the Big Ten page without touching the roster file.
+// Safe to run again: an email that's already there is left alone.
+//   addTester { "email": "ynolem@gmail.com", "firstName": "Melody", "lastName": "S", "role": "CREATIVE", "note": "..." }
+// Then send their emails with sendAllWelcome / sendAllGuide using "only" (they
+// must be in the roster file for that), or use "Send welcome" on their page.
+export const addTester = internalMutation({
+    args: {
+        email: v.string(),
+        firstName: v.string(),
+        lastName: v.optional(v.string()),
+        role: v.union(v.literal("CLIENT"), v.literal("CREATIVE")),
+        note: v.optional(v.string()),
+    },
+    handler: async (ctx, { email, firstName, lastName, role, note }) => {
+        const clean = email.trim().toLowerCase();
+        const existing = await ctx.db
+            .query("bigTenTesters")
+            .withIndex("by_email", q => q.eq("email", clean))
+            .first();
+        if (existing) return { added: false, reason: "Already on the list" };
+
+        await ctx.db.insert("bigTenTesters", {
+            email: clean,
+            firstName: firstName.trim(),
+            lastName: lastName?.trim() || undefined,
+            role,
+            note,
+            confirmed: false,
+            readyToTest: false,
+            results: {
+                registration: "PENDING",
+                access: "PENDING",
+                core: "PENDING",
+                navigation: "PENDING",
+            },
+            remindersMuted: false,
+            updatedAt: Date.now(),
+        });
+        return { added: true, email: clean };
+    },
+});
+
 // Sends the daily check-in right now, whatever the time or date.
 // Only reaches testers who haven't signed up or haven't sent a report.
 //   sendRemindersNow {}

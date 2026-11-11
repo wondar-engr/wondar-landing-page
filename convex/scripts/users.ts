@@ -18,9 +18,24 @@ import { getStripe } from "../lib/stripe";
 
 const clean = (email: string) => email.trim().toLowerCase();
 
+// Written out on purpose. The action below calls the mutation through
+// `internal` in this same file, so letting TypeScript infer these return
+// types makes it loop back on itself ("implicitly has type any").
+type EmailChangeReport = {
+    applied: boolean;
+    userId: string;
+    name: string;
+    from: string;
+    to: string;
+    feedbackReports: number;
+    bigTenTester: boolean;
+    stripeCustomerId: string | null;
+    hasStripeConnectAccount: boolean;
+};
+
 export const applyEmailChange = internalMutation({
     args: { from: v.string(), to: v.string(), dryRun: v.boolean() },
-    handler: async (ctx, args) => {
+    handler: async (ctx, args): Promise<EmailChangeReport> => {
         const from = clean(args.from);
         const to = clean(args.to);
 
@@ -115,9 +130,12 @@ export const changeEmail = internalAction({
         to: v.string(),
         dryRun: v.optional(v.boolean()), // defaults to true
     },
-    handler: async (ctx, args) => {
+    handler: async (
+        ctx,
+        args,
+    ): Promise<EmailChangeReport & { stripe: string; note: string }> => {
         const dryRun = args.dryRun ?? true;
-        const result = await ctx.runMutation(
+        const result: EmailChangeReport = await ctx.runMutation(
             internal.scripts.users.applyEmailChange,
             { from: args.from, to: args.to, dryRun },
         );

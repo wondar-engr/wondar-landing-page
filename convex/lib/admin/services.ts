@@ -2,218 +2,205 @@ import { v } from "convex/values";
 import { mutation, query } from "../../_generated/server";
 import { hasAccess } from "../../utils/access";
 import {
-    getAuthUserProfile,
-    requireAccessProfile,
+  getAuthUserProfile,
+  requireAccessProfile,
 } from "../../utils/helpers/auth";
 import { CustomError } from "../../utils/errorUtils";
 
 export const addServiceCategory = mutation({
-    args: {
-        name: v.string(),
-        image: v.string(),
-    },
-    handler: async (ctx, { name, image }) => {
-        try {
-            await requireAccessProfile(ctx, "serviceCategories");
+  args: {
+    name: v.string(),
+    image: v.string(),
+  },
+  handler: async (ctx, { name, image }) => {
+    try {
+      await requireAccessProfile(ctx, "serviceCategories");
 
-            const existingCategory = await ctx.db
-                .query("serviceCategories")
-                .withIndex("byName", q => q.eq("name", name))
-                .first();
+      const existingCategory = await ctx.db
+        .query("serviceCategories")
+        .withIndex("byName", (q) => q.eq("name", name))
+        .first();
 
-            if (existingCategory) {
-                throw new CustomError("Category with this name already exists");
-            }
+      if (existingCategory) {
+        throw new CustomError("Category with this name already exists");
+      }
 
-            // Get the highest rank to place new category at the end
-            const allCategories = await ctx.db
-                .query("serviceCategories")
-                .collect();
-            const maxRank = allCategories.reduce(
-                (max, cat) => Math.max(max, cat.rank ?? 0),
-                0,
-            );
+      // Get the highest rank to place new category at the end
+      const allCategories = await ctx.db.query("serviceCategories").collect();
+      const maxRank = allCategories.reduce(
+        (max, cat) => Math.max(max, cat.rank ?? 0),
+        0,
+      );
 
-            const categoryId = await ctx.db.insert("serviceCategories", {
-                name,
-                image,
-                status: true, // Active by default
-                rank: maxRank + 1,
-            });
+      const categoryId = await ctx.db.insert("serviceCategories", {
+        name,
+        image,
+        status: true, // Active by default
+        rank: maxRank + 1,
+      });
 
-            return {
-                status: true,
-                data: categoryId,
-            };
-        } catch (err: unknown) {
-            console.log("[ERR]:", err);
-            return {
-                status: false,
-                error:
-                    err instanceof Error
-                        ? err.message
-                        : "Failed to add category.",
-            };
-        }
-    },
+      return {
+        status: true,
+        data: categoryId,
+      };
+    } catch (err: unknown) {
+      console.log("[ERR]:", err);
+      return {
+        status: false,
+        error: err instanceof Error ? err.message : "Failed to add category.",
+      };
+    }
+  },
 });
 
 export const updateServiceCategory = mutation({
-    args: {
-        id: v.id("serviceCategories"),
-        name: v.optional(v.string()),
-        image: v.optional(v.string()),
-        status: v.optional(v.boolean()),
-        rank: v.optional(v.number()),
-    },
-    handler: async (ctx, { id, name, image, status, rank }) => {
-        try {
-            await requireAccessProfile(ctx, "serviceCategories");
+  args: {
+    id: v.id("serviceCategories"),
+    name: v.optional(v.string()),
+    image: v.optional(v.string()),
+    status: v.optional(v.boolean()),
+    rank: v.optional(v.number()),
+  },
+  handler: async (ctx, { id, name, image, status, rank }) => {
+    try {
+      await requireAccessProfile(ctx, "serviceCategories");
 
-            const existing = await ctx.db.get(id);
-            if (!existing) {
-                throw new CustomError("Category not found");
-            }
+      const existing = await ctx.db.get(id);
+      if (!existing) {
+        throw new CustomError("Category not found");
+      }
 
-            // If name is being changed, check for duplicates
-            if (name && name !== existing.name) {
-                const duplicate = await ctx.db
-                    .query("serviceCategories")
-                    .withIndex("byName", q => q.eq("name", name))
-                    .first();
+      // If name is being changed, check for duplicates
+      if (name && name !== existing.name) {
+        const duplicate = await ctx.db
+          .query("serviceCategories")
+          .withIndex("byName", (q) => q.eq("name", name))
+          .first();
 
-                if (duplicate) {
-                    throw new CustomError(
-                        "Category with this name already exists",
-                    );
-                }
-            }
-
-            // Build update object with only provided fields
-            const updates: Partial<{
-                name: string;
-                image: string;
-                status: boolean;
-                rank: number;
-            }> = {};
-
-            if (name !== undefined) updates.name = name;
-            if (image !== undefined) updates.image = image;
-            if (status !== undefined) updates.status = status;
-            if (rank !== undefined) updates.rank = rank;
-
-            await ctx.db.patch(id, updates);
-
-            return {
-                status: true,
-                data: id,
-            };
-        } catch (err: unknown) {
-            console.log("[ERR]:", err);
-            return {
-                status: false,
-                error:
-                    err instanceof Error
-                        ? err.message
-                        : "Failed to update category.",
-            };
+        if (duplicate) {
+          throw new CustomError("Category with this name already exists");
         }
-    },
+      }
+
+      // Build update object with only provided fields
+      const updates: Partial<{
+        name: string;
+        image: string;
+        status: boolean;
+        rank: number;
+      }> = {};
+
+      if (name !== undefined) updates.name = name;
+      if (image !== undefined) updates.image = image;
+      if (status !== undefined) updates.status = status;
+      if (rank !== undefined) updates.rank = rank;
+
+      await ctx.db.patch(id, updates);
+
+      return {
+        status: true,
+        data: id,
+      };
+    } catch (err: unknown) {
+      console.log("[ERR]:", err);
+      return {
+        status: false,
+        error:
+          err instanceof Error ? err.message : "Failed to update category.",
+      };
+    }
+  },
 });
 
 export const disableServiceCategory = mutation({
-    args: {
-        id: v.id("serviceCategories"),
-    },
-    handler: async (ctx, { id }) => {
-        try {
-            await requireAccessProfile(ctx, "serviceCategories");
+  args: {
+    id: v.id("serviceCategories"),
+  },
+  handler: async (ctx, { id }) => {
+    try {
+      await requireAccessProfile(ctx, "serviceCategories");
 
-            const existing = await ctx.db.get(id);
-            if (!existing) {
-                throw new CustomError("Category not found");
-            }
+      const existing = await ctx.db.get(id);
+      if (!existing) {
+        throw new CustomError("Category not found");
+      }
 
-            await ctx.db.patch(id, {
-                status: false,
-            });
+      await ctx.db.patch(id, {
+        status: false,
+      });
 
-            return {
-                status: true,
-                data: id,
-            };
-        } catch (err: unknown) {
-            console.log("[ERR]:", err);
-            return {
-                status: false,
-                error:
-                    err instanceof Error
-                        ? err.message
-                        : "Failed to disable category.",
-            };
-        }
-    },
+      return {
+        status: true,
+        data: id,
+      };
+    } catch (err: unknown) {
+      console.log("[ERR]:", err);
+      return {
+        status: false,
+        error:
+          err instanceof Error ? err.message : "Failed to disable category.",
+      };
+    }
+  },
 });
 
 export const swapCategoryRanks = mutation({
-    args: {
-        categoryId: v.id("serviceCategories"),
-        targetCategoryId: v.id("serviceCategories"),
-    },
-    handler: async (ctx, { categoryId, targetCategoryId }) => {
-        try {
-            await requireAccessProfile(ctx, "serviceCategories");
+  args: {
+    categoryId: v.id("serviceCategories"),
+    targetCategoryId: v.id("serviceCategories"),
+  },
+  handler: async (ctx, { categoryId, targetCategoryId }) => {
+    try {
+      await requireAccessProfile(ctx, "serviceCategories");
 
-            const category = await ctx.db.get(categoryId);
-            const targetCategory = await ctx.db.get(targetCategoryId);
+      const category = await ctx.db.get(categoryId);
+      const targetCategory = await ctx.db.get(targetCategoryId);
 
-            if (!category || !targetCategory) {
-                throw new CustomError("One or both categories not found");
-            }
+      if (!category || !targetCategory) {
+        throw new CustomError("One or both categories not found");
+      }
 
-            // Swap the ranks
-            const categoryRank = category.rank;
-            const targetRank = targetCategory.rank;
+      // Swap the ranks
+      const categoryRank = category.rank;
+      const targetRank = targetCategory.rank;
 
-            await ctx.db.patch(categoryId, { rank: targetRank });
-            await ctx.db.patch(targetCategoryId, { rank: categoryRank });
+      await ctx.db.patch(categoryId, { rank: targetRank });
+      await ctx.db.patch(targetCategoryId, { rank: categoryRank });
 
-            return {
-                status: true,
-            };
-        } catch (err: unknown) {
-            console.log("[ERR]:", err);
-            return {
-                status: false,
-                error:
-                    err instanceof Error
-                        ? err.message
-                        : "Failed to reorder categories.",
-            };
-        }
-    },
+      return {
+        status: true,
+      };
+    } catch (err: unknown) {
+      console.log("[ERR]:", err);
+      return {
+        status: false,
+        error:
+          err instanceof Error ? err.message : "Failed to reorder categories.",
+      };
+    }
+  },
 });
 
 export const getServiceCategories = query({
-    args: {
-        includeDisabled: v.optional(v.boolean()),
-    },
-    handler: async (ctx, { includeDisabled }) => {
-        const profile = await getAuthUserProfile(ctx);
-        if (!profile || !hasAccess(profile.role, "serviceCategories")) {
-            return null;
-        }
+  args: {
+    includeDisabled: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { includeDisabled }) => {
+    const profile = await getAuthUserProfile(ctx);
+    if (!profile || !hasAccess(profile.role, "serviceCategories")) {
+      return null;
+    }
 
-        let categories = await ctx.db.query("serviceCategories").collect();
+    let categories = await ctx.db.query("serviceCategories").collect();
 
-        // Filter out disabled unless explicitly requested
-        if (!includeDisabled) {
-            categories = categories.filter(cat => cat.status !== false);
-        }
+    // Filter out disabled unless explicitly requested
+    if (!includeDisabled) {
+      categories = categories.filter((cat) => cat.status !== false);
+    }
 
-        // Sort by rank (ascending - lower rank = higher priority)
-        categories.sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
+    // Sort by rank (ascending - lower rank = higher priority)
+    categories.sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
 
-        return categories;
-    },
+    return categories;
+  },
 });

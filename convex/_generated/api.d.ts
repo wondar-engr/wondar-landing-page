@@ -154,6 +154,7 @@ import type * as unions from "../unions.js";
 import type * as utils_access from "../utils/access.js";
 import type * as utils_constants_bigTen from "../utils/constants/bigTen.js";
 import type * as utils_devMode from "../utils/devMode.js";
+import type * as utils_emails_AssignedEmail from "../utils/emails/AssignedEmail.js";
 import type * as utils_emails_ContactReceivedEmail from "../utils/emails/ContactReceivedEmail.js";
 import type * as utils_emails_clientOnboardingEmail from "../utils/emails/clientOnboardingEmail.js";
 import type * as utils_emails_components_BaseEmail from "../utils/emails/components/BaseEmail.js";
@@ -177,6 +178,7 @@ import type * as utils_emails_welcomeEmail from "../utils/emails/welcomeEmail.js
 import type * as utils_errorUtils from "../utils/errorUtils.js";
 import type * as utils_helpers from "../utils/helpers.js";
 import type * as utils_helpers_address from "../utils/helpers/address.js";
+import type * as utils_helpers_adminAlerts from "../utils/helpers/adminAlerts.js";
 import type * as utils_helpers_auth from "../utils/helpers/auth.js";
 import type * as utils_helpers_bigTen from "../utils/helpers/bigTen.js";
 import type * as utils_helpers_bookings from "../utils/helpers/bookings.js";
@@ -345,6 +347,7 @@ declare const fullApi: ApiFromModules<{
   "utils/access": typeof utils_access;
   "utils/constants/bigTen": typeof utils_constants_bigTen;
   "utils/devMode": typeof utils_devMode;
+  "utils/emails/AssignedEmail": typeof utils_emails_AssignedEmail;
   "utils/emails/ContactReceivedEmail": typeof utils_emails_ContactReceivedEmail;
   "utils/emails/clientOnboardingEmail": typeof utils_emails_clientOnboardingEmail;
   "utils/emails/components/BaseEmail": typeof utils_emails_components_BaseEmail;
@@ -368,6 +371,7 @@ declare const fullApi: ApiFromModules<{
   "utils/errorUtils": typeof utils_errorUtils;
   "utils/helpers": typeof utils_helpers;
   "utils/helpers/address": typeof utils_helpers_address;
+  "utils/helpers/adminAlerts": typeof utils_helpers_adminAlerts;
   "utils/helpers/auth": typeof utils_helpers_auth;
   "utils/helpers/bigTen": typeof utils_helpers_bigTen;
   "utils/helpers/bookings": typeof utils_helpers_bookings;

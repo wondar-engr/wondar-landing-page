@@ -1036,6 +1036,7 @@ const schema = defineSchema({
         handledBy: v.optional(v.id("profiles")),
         handledAt: v.optional(v.number()),
         feedbackReportId: v.optional(v.id("feedbackReports")), // if moved
+        ownerId: v.optional(v.id("profiles")), // admin looking after it
     })
         .index("by_status", ["status"])
         .index("by_email", ["email"]),
