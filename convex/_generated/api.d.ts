@@ -130,6 +130,7 @@ import type * as push from "../push.js";
 import type * as r2 from "../r2.js";
 import type * as scripts_backfillOfflineSettlement from "../scripts/backfillOfflineSettlement.js";
 import type * as scripts_bigTen from "../scripts/bigTen.js";
+import type * as scripts_creativeProfiles from "../scripts/creativeProfiles.js";
 import type * as scripts_platformLedger from "../scripts/platformLedger.js";
 import type * as scripts_roles from "../scripts/roles.js";
 import type * as scripts_stripeBalance from "../scripts/stripeBalance.js";
@@ -323,6 +324,7 @@ declare const fullApi: ApiFromModules<{
   r2: typeof r2;
   "scripts/backfillOfflineSettlement": typeof scripts_backfillOfflineSettlement;
   "scripts/bigTen": typeof scripts_bigTen;
+  "scripts/creativeProfiles": typeof scripts_creativeProfiles;
   "scripts/platformLedger": typeof scripts_platformLedger;
   "scripts/roles": typeof scripts_roles;
   "scripts/stripeBalance": typeof scripts_stripeBalance;

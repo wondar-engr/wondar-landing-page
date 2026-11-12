@@ -96,6 +96,8 @@ export const initCreativeProfile = mutation({
                 },
                 accountStatus: "ACTIVE",
                 onboardingComplete: false,
+                // Custom quotes start on; creatives can turn them off in settings
+                acceptsQuotes: true,
             });
 
             return { success: true, profileId };

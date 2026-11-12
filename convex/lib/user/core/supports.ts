@@ -72,7 +72,7 @@ export const toggleSupport = mutation({
                 title: "New Supporter! 🎉",
                 body: `${supporterName} is now supporting you.`,
                 type: "GENERAL",
-                meta: { screen: "supporters" },
+                meta: { screen: "supporter", id: args.supporterId },
                 metaUser: args.supporterId,
             });
             return { action: "added" };

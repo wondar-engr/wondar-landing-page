@@ -42,8 +42,6 @@ export const getCreativeProfile = query({
             }) || [],
         );
 
-        const { workAddress: _hidden, ...rest } = creativeProfile;
-
         return {
             profile: {
                 id: profile.userId,
@@ -53,8 +51,9 @@ export const getCreativeProfile = query({
                 lastSeen: profile.lastSeen,
             },
             creativeProfile: {
-                ...rest,
+                ...creativeProfile,
                 skills: skills.filter(Boolean),
+                // Comes after the spread, so it replaces the exact address
                 workAddress: publicWorkAddress(creativeProfile),
             },
         };
@@ -237,6 +236,9 @@ export const getNearbyCreatives = query({
                     isAvailableToday: false,
                     lat: loc.lat,
                     lng: loc.lng,
+                    // So the explore search box can match "Dallas" or "TX"
+                    city: loc.city ?? "",
+                    state: loc.state ?? "",
                 };
             }),
         );

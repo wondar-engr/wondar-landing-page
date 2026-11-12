@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { getAuthUserId } from "../../../auth";
 import { paginationOptsValidator } from "convex/server";
 import { internal } from "@convex/_generated/api";
+import { Id } from "../../../_generated/dataModel";
 import { sendNotification } from "@convex/lib/notifications";
 
 export const createPost = mutation({
@@ -71,7 +72,12 @@ export const createPost = mutation({
                           ? "Posted a new video"
                           : "Posted a new photo",
                     type: "GENERAL",
-                    meta: { screen: "post_detail", id: postId },
+                    // There is no post page yet, so the app opens the creative's page
+                    meta: {
+                        screen: "post_detail",
+                        id: postId,
+                        creativeId,
+                    },
                 }),
             ),
         );
@@ -149,6 +155,69 @@ export const getCreativePosts = query({
             .filter(q => q.eq(q.field("visibility"), "PUBLIC"))
             .order("desc")
             .collect();
+    },
+});
+
+// One post, for the post page (opened from a "posted something new" alert)
+export const getPost = query({
+    args: { postId: v.id("posts") },
+    handler: async (ctx, { postId }) => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) return null;
+
+        const post = await ctx.db.get(postId);
+        if (!post) return null;
+
+        const isOwner = post.creativeId === userId;
+        if (!isOwner && post.visibility === "FOLLOWERS_ONLY") {
+            const supports = await ctx.db
+                .query("supports")
+                .withIndex("by_supported", q =>
+                    q.eq("supportedId", post.creativeId),
+                )
+                .collect();
+            if (!supports.some(s => s.supporterId === userId)) return null;
+        }
+
+        const likes = await ctx.db
+            .query("postLikes")
+            .withIndex("by_postId", q => q.eq("postId", postId))
+            .collect();
+
+        let service: { _id: Id<"services">; name: string } | null = null;
+        if (post.serviceId) {
+            const svc = await ctx.db.get(post.serviceId);
+            if (svc) service = { _id: svc._id, name: svc.name };
+        }
+
+        const profile = await ctx.db
+            .query("profiles")
+            .withIndex("by_userId", q => q.eq("userId", post.creativeId))
+            .first();
+        const creativeProfile = await ctx.db
+            .query("creativeProfiles")
+            .withIndex("by_userId", q => q.eq("userId", post.creativeId))
+            .first();
+
+        return {
+            _id: post._id,
+            createdAt: post.createdAt,
+            creativeId: post.creativeId,
+            media: post.media,
+            caption: post.caption,
+            tags: post.tags,
+            likeCount: likes.length,
+            likedByMe: likes.some(l => l.userId === userId),
+            service,
+            creative: {
+                userId: post.creativeId,
+                name:
+                    creativeProfile?.businessName ||
+                    `${profile?.firstName ?? ""} ${profile?.lastName ?? ""}`.trim() ||
+                    "Creative",
+                avatar: profile?.avatar,
+            },
+        };
     },
 });
 
